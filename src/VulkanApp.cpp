@@ -896,7 +896,7 @@ bool VulkanApp::CreateGraphicsPipeline()
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -1123,7 +1123,7 @@ void VulkanApp::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imag
     renderPassInfo.renderArea.extent = swapchainExtent_;
 
     VkClearValue clearColor{};
-    clearColor.color = {{0.1f, 0.1f, 0.2f, 1.0f}};
+    clearColor.color = {{0.02f, 0.02f, 0.05f, 1.0f}};
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
 
