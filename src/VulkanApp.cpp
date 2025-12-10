@@ -1052,6 +1052,11 @@ bool VulkanApp::CreateCommandPool()
 
 bool VulkanApp::CreateCommandBuffers()
 {
+    if (!commandBuffers_.empty())
+    {
+        vkFreeCommandBuffers(device_, commandPool_, static_cast<uint32_t>(commandBuffers_.size()), commandBuffers_.data());
+    }
+
     commandBuffers_.resize(swapchainImages_.size());
 
     VkCommandBufferAllocateInfo allocInfo{};
@@ -1139,7 +1144,11 @@ void VulkanApp::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imag
 
 bool VulkanApp::DrawFrame(const Win32Window& window)
 {
-    (void)window;
+    WindowSize size = window.GetClientSize();
+    if (size.width == 0 || size.height == 0)
+    {
+        return true; // minimized; skip rendering
+    }
 
     vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
 
@@ -1150,7 +1159,11 @@ bool VulkanApp::DrawFrame(const Win32Window& window)
 
     if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        return true; // swapchain recreation would be needed; skipped for now.
+        if (!RecreateSwapchain(window))
+        {
+            return false;
+        }
+        return true;
     }
     if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR)
     {
@@ -1203,7 +1216,10 @@ bool VulkanApp::DrawFrame(const Win32Window& window)
     VkResult presentResult = vkQueuePresentKHR(presentQueue_, &presentInfo);
     if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
     {
-        // Swapchain recreation to be handled in resize step.
+        if (!RecreateSwapchain(window))
+        {
+            return false;
+        }
     }
     else if (presentResult != VK_SUCCESS)
     {
@@ -1230,4 +1246,95 @@ VkShaderModule VulkanApp::CreateShaderModule(const std::vector<uint32_t>& code) 
     }
 
     return shaderModule;
+}
+
+void VulkanApp::CleanupSwapchain()
+{
+    vkDeviceWaitIdle(device_);
+
+    for (VkFramebuffer fb : framebuffers_)
+    {
+        vkDestroyFramebuffer(device_, fb, nullptr);
+    }
+    framebuffers_.clear();
+
+    if (!commandBuffers_.empty())
+    {
+        vkFreeCommandBuffers(device_, commandPool_, static_cast<uint32_t>(commandBuffers_.size()), commandBuffers_.data());
+        commandBuffers_.clear();
+    }
+
+    if (graphicsPipeline_ != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device_, graphicsPipeline_, nullptr);
+        graphicsPipeline_ = VK_NULL_HANDLE;
+    }
+
+    if (pipelineLayout_ != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
+        pipelineLayout_ = VK_NULL_HANDLE;
+    }
+
+    if (renderPass_ != VK_NULL_HANDLE)
+    {
+        vkDestroyRenderPass(device_, renderPass_, nullptr);
+        renderPass_ = VK_NULL_HANDLE;
+    }
+
+    for (VkImageView view : swapchainImageViews_)
+    {
+        vkDestroyImageView(device_, view, nullptr);
+    }
+    swapchainImageViews_.clear();
+
+    if (swapchain_ != VK_NULL_HANDLE)
+    {
+        vkDestroySwapchainKHR(device_, swapchain_, nullptr);
+        swapchain_ = VK_NULL_HANDLE;
+    }
+}
+
+bool VulkanApp::RecreateSwapchain(const Win32Window& window)
+{
+    WindowSize size = window.GetClientSize();
+    while (size.width == 0 || size.height == 0)
+    {
+        size = window.GetClientSize();
+    }
+
+    CleanupSwapchain();
+
+    if (!CreateSwapchain(window))
+    {
+        return false;
+    }
+
+    if (!CreateImageViews())
+    {
+        return false;
+    }
+
+    if (!CreateRenderPass())
+    {
+        return false;
+    }
+
+    if (!CreateGraphicsPipeline())
+    {
+        return false;
+    }
+
+    if (!CreateFramebuffers())
+    {
+        return false;
+    }
+
+    if (!CreateCommandBuffers())
+    {
+        return false;
+    }
+
+    imagesInFlight_.assign(swapchainImages_.size(), VK_NULL_HANDLE);
+    return true;
 }

@@ -79,6 +79,8 @@ private:
     bool CreateCommandBuffers();
     bool CreateSyncObjects();
     void RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+    bool RecreateSwapchain(const Win32Window& window);
+    void CleanupSwapchain();
     VkShaderModule CreateShaderModule(const std::vector<uint32_t>& code) const;
 
     bool CheckValidationLayerSupport() const;
