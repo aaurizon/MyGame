@@ -1,0 +1,33 @@
+# Auto-detect text files and normalize line endings
+*       text=auto eol=lf
+
+# Syntax-aware diff for common languages
+*.md    diff=markdown
+*.json  diff=json
+*.html  diff=html
+*.css   diff=css
+*.js    diff=javascript
+*.php   diff=php
+
+# Force LF end-of-line on shell scripts
+*.sh    text eol=lf
+
+# Force CRLF end-of-line on Windows batch scripts
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Explicit binary files (images, fonts, archives...)
+*.bmp   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+
+# Exclude from export (archives)
+/.github export-ignore
