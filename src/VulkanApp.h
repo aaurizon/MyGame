@@ -45,6 +45,10 @@ public:
     VkFormat GetSwapchainImageFormat() const { return swapchainImageFormat_; }
     VkExtent2D GetSwapchainExtent() const { return swapchainExtent_; }
     const std::vector<VkImageView>& GetSwapchainImageViews() const { return swapchainImageViews_; }
+    VkRenderPass GetRenderPass() const { return renderPass_; }
+    VkPipelineLayout GetPipelineLayout() const { return pipelineLayout_; }
+    VkPipeline GetGraphicsPipeline() const { return graphicsPipeline_; }
+    const std::vector<VkFramebuffer>& GetFramebuffers() const { return framebuffers_; }
 
 private:
     struct SwapChainSupportDetails
@@ -61,6 +65,10 @@ private:
     bool CreateLogicalDevice();
     bool CreateSwapchain(const Win32Window& window);
     bool CreateImageViews();
+    bool CreateRenderPass();
+    bool CreateGraphicsPipeline();
+    bool CreateFramebuffers();
+    VkShaderModule CreateShaderModule(const std::vector<uint32_t>& code) const;
 
     bool CheckValidationLayerSupport() const;
     std::vector<const char*> GatherRequiredExtensions();
@@ -90,6 +98,11 @@ private:
     std::vector<VkImageView> swapchainImageViews_;
     VkFormat swapchainImageFormat_ = VK_FORMAT_UNDEFINED;
     VkExtent2D swapchainExtent_{};
+
+    VkRenderPass renderPass_ = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
+    VkPipeline graphicsPipeline_ = VK_NULL_HANDLE;
+    std::vector<VkFramebuffer> framebuffers_;
 
     const std::vector<const char*> validationLayers_{"VK_LAYER_KHRONOS_validation"};
     const std::vector<const char*> deviceExtensions_{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
