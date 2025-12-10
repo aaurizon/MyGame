@@ -174,9 +174,13 @@ void VulkanApp::Cleanup()
         for (size_t i = 0; i < imageAvailableSemaphores_.size(); ++i)
         {
             vkDestroySemaphore(device_, imageAvailableSemaphores_[i], nullptr);
-            vkDestroySemaphore(device_, renderFinishedSemaphores_[i], nullptr);
         }
         imageAvailableSemaphores_.clear();
+
+        for (size_t i = 0; i < renderFinishedSemaphores_.size(); ++i)
+        {
+            vkDestroySemaphore(device_, renderFinishedSemaphores_[i], nullptr);
+        }
         renderFinishedSemaphores_.clear();
 
         for (VkFence fence : inFlightFences_)
@@ -1083,7 +1087,7 @@ bool VulkanApp::CreateCommandBuffers()
 bool VulkanApp::CreateSyncObjects()
 {
     imageAvailableSemaphores_.resize(MAX_FRAMES_IN_FLIGHT);
-    renderFinishedSemaphores_.resize(MAX_FRAMES_IN_FLIGHT);
+    renderFinishedSemaphores_.resize(swapchainImages_.size());
     inFlightFences_.resize(MAX_FRAMES_IN_FLIGHT);
     imagesInFlight_.resize(swapchainImages_.size(), VK_NULL_HANDLE);
 
@@ -1097,10 +1101,18 @@ bool VulkanApp::CreateSyncObjects()
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
         if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &imageAvailableSemaphores_[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &renderFinishedSemaphores_[i]) != VK_SUCCESS ||
             vkCreateFence(device_, &fenceInfo, nullptr, &inFlightFences_[i]) != VK_SUCCESS)
         {
             std::cerr << "Failed to create synchronization objects for frame " << i << std::endl;
+            return false;
+        }
+    }
+
+    for (size_t i = 0; i < renderFinishedSemaphores_.size(); ++i)
+    {
+        if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &renderFinishedSemaphores_[i]) != VK_SUCCESS)
+        {
+            std::cerr << "Failed to create renderFinished semaphore for image " << i << std::endl;
             return false;
         }
     }
@@ -1192,7 +1204,7 @@ bool VulkanApp::DrawFrame(Win32Window& window)
 
     VkSemaphore waitSemaphores[] = {imageAvailableSemaphores_[currentFrame_]};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores_[currentFrame_]};
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores_[imageIndex]};
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1210,14 +1222,12 @@ bool VulkanApp::DrawFrame(Win32Window& window)
         return false;
     }
 
-    VkSwapchainKHR swapchains[] = {swapchain_};
-
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores;
     presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = swapchains;
+    presentInfo.pSwapchains = &swapchain_;
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = nullptr;
 
@@ -1301,6 +1311,12 @@ void VulkanApp::CleanupSwapchain()
         vkDestroySwapchainKHR(device_, swapchain_, nullptr);
         swapchain_ = VK_NULL_HANDLE;
     }
+
+    for (VkSemaphore sem : renderFinishedSemaphores_)
+    {
+        vkDestroySemaphore(device_, sem, nullptr);
+    }
+    renderFinishedSemaphores_.clear();
 }
 
 bool VulkanApp::RecreateSwapchain(const Win32Window& window)
@@ -1344,5 +1360,19 @@ bool VulkanApp::RecreateSwapchain(const Win32Window& window)
     }
 
     imagesInFlight_.assign(swapchainImages_.size(), VK_NULL_HANDLE);
+
+    // Recreate render-finished semaphores sized to swapchain images.
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    renderFinishedSemaphores_.resize(swapchainImages_.size());
+    for (size_t i = 0; i < renderFinishedSemaphores_.size(); ++i)
+    {
+        if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &renderFinishedSemaphores_[i]) != VK_SUCCESS)
+        {
+            std::cerr << "Failed to recreate renderFinished semaphore for image " << i << std::endl;
+            return false;
+        }
+    }
+
     return true;
 }

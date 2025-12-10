@@ -113,10 +113,10 @@ private:
     std::vector<VkCommandBuffer> commandBuffers_;
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
     uint32_t currentFrame_ = 0;
-    std::vector<VkSemaphore> imageAvailableSemaphores_;
-    std::vector<VkSemaphore> renderFinishedSemaphores_;
-    std::vector<VkFence> inFlightFences_;
-    std::vector<VkFence> imagesInFlight_;
+    std::vector<VkSemaphore> imageAvailableSemaphores_; // sized to MAX_FRAMES_IN_FLIGHT
+    std::vector<VkSemaphore> renderFinishedSemaphores_; // sized to swapchain image count
+    std::vector<VkFence> inFlightFences_;               // sized to MAX_FRAMES_IN_FLIGHT
+    std::vector<VkFence> imagesInFlight_;               // sized to swapchain image count
 
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     std::vector<VkImage> swapchainImages_;
