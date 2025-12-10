@@ -57,20 +57,16 @@ Win32Window::~Win32Window()
 
 bool Win32Window::PumpMessages(MSG& msg)
 {
-    BOOL result = GetMessageA(&msg, nullptr, 0, 0);
-    if (result > 0)
+    while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE))
     {
+        if (msg.message == WM_QUIT)
+        {
+            return false;
+        }
         TranslateMessage(&msg);
         DispatchMessageA(&msg);
-        return true;
     }
-    if (result == 0)
-    {
-        return false;  // WM_QUIT
-    }
-
-    std::cerr << "GetMessage failed with error: " << GetLastError() << std::endl;
-    return false;
+    return true;
 }
 
 void Win32Window::RegisterWindowClass()

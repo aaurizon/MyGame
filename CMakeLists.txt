@@ -20,4 +20,8 @@ target_include_directories(MyGame PRIVATE
 )
 target_link_directories(MyGame PRIVATE "${VULKAN_SDK_ROOT}/Lib")
 target_link_libraries(MyGame PRIVATE vulkan-1)
-target_compile_definitions(MyGame PRIVATE VK_USE_PLATFORM_WIN32_KHR)
+target_compile_definitions(MyGame PRIVATE
+    VK_USE_PLATFORM_WIN32_KHR
+    VMA_STATIC_VULKAN_FUNCTIONS=0
+    VMA_DYNAMIC_VULKAN_FUNCTIONS=1
+)

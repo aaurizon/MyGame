@@ -31,7 +31,11 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     MSG msg{};
     while (window.PumpMessages(msg))
     {
-        // Rendering will be added in later steps.
+        if (!app.DrawFrame(window))
+        {
+            MessageBoxA(window.GetHwnd(), "Render error.", "Error", MB_OK | MB_ICONERROR);
+            break;
+        }
     }
 
     return static_cast<int>(msg.wParam);

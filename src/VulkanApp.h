@@ -1,13 +1,17 @@
 #pragma once
 
 #define VK_USE_PLATFORM_WIN32_KHR
-#include <Volk/volk.h>
+#include <volk/volk.h>
 
 #include <optional>
 #include <string>
 #include <vector>
 
 class Win32Window;
+struct VmaAllocator_T;
+struct VmaAllocation_T;
+typedef struct VmaAllocator_T* VmaAllocator;
+typedef struct VmaAllocation_T* VmaAllocation;
 
 struct QueueFamilyIndices
 {
@@ -31,6 +35,7 @@ public:
 
     bool Initialize(const char* appName, const Win32Window& window);
     void Cleanup();
+    bool DrawFrame(const Win32Window& window);
 
     bool IsInitialized() const { return initialized_; }
 
@@ -68,6 +73,12 @@ private:
     bool CreateRenderPass();
     bool CreateGraphicsPipeline();
     bool CreateFramebuffers();
+    bool CreateAllocator();
+    bool CreateVertexBuffer();
+    bool CreateCommandPool();
+    bool CreateCommandBuffers();
+    bool CreateSyncObjects();
+    void RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     VkShaderModule CreateShaderModule(const std::vector<uint32_t>& code) const;
 
     bool CheckValidationLayerSupport() const;
@@ -92,6 +103,19 @@ private:
     VkQueue presentQueue_ = VK_NULL_HANDLE;
     QueueFamilyIndices queueFamilies_{};
     std::string selectedGpuName_;
+
+    VmaAllocator allocator_ = VK_NULL_HANDLE;
+    VkBuffer vertexBuffer_ = VK_NULL_HANDLE;
+    VmaAllocation vertexAllocation_ = VK_NULL_HANDLE;
+
+    VkCommandPool commandPool_ = VK_NULL_HANDLE;
+    std::vector<VkCommandBuffer> commandBuffers_;
+    static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+    uint32_t currentFrame_ = 0;
+    std::vector<VkSemaphore> imageAvailableSemaphores_;
+    std::vector<VkSemaphore> renderFinishedSemaphores_;
+    std::vector<VkFence> inFlightFences_;
+    std::vector<VkFence> imagesInFlight_;
 
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     std::vector<VkImage> swapchainImages_;

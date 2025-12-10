@@ -24,7 +24,7 @@ public:
     bool IsValid() const { return hwnd_ != nullptr; }
     WindowSize GetClientSize() const;
 
-    // Returns false when WM_QUIT is received or an error occurs.
+    // Pumps all pending messages; returns false when WM_QUIT is received or an error occurs.
     bool PumpMessages(MSG& msg);
 
 private:

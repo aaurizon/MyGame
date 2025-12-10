@@ -1,14 +1,56 @@
 #define VOLK_IMPLEMENTATION
 #include "VulkanApp.h"
 
+#define VMA_IMPLEMENTATION
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
+#include <vma/vk_mem_alloc.h>
+
 #include "Win32Window.h"
 
+#include <cstddef>
 #include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <string>
 #include <limits>
 #include <array>
+
+struct Vertex
+{
+    float pos[2];
+    float color[3];
+};
+
+static VkVertexInputBindingDescription GetBindingDescription()
+{
+    VkVertexInputBindingDescription binding{};
+    binding.binding = 0;
+    binding.stride = sizeof(Vertex);
+    binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    return binding;
+}
+
+static std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions()
+{
+    std::array<VkVertexInputAttributeDescription, 2> attrs{};
+    attrs[0].binding = 0;
+    attrs[0].location = 0;
+    attrs[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attrs[0].offset = offsetof(Vertex, pos);
+
+    attrs[1].binding = 0;
+    attrs[1].location = 1;
+    attrs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attrs[1].offset = offsetof(Vertex, color);
+    return attrs;
+}
+
+static const std::array<Vertex, 3> kVertices = {{
+    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, 0.5f},  {0.0f, 1.0f, 0.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+}};
 
 VulkanApp::~VulkanApp()
 {
@@ -68,6 +110,11 @@ bool VulkanApp::Initialize(const char* appName, const Win32Window& window)
 
     volkLoadDevice(device_);
 
+    if (!CreateAllocator())
+    {
+        return false;
+    }
+
     if (!CreateSwapchain(window))
     {
         return false;
@@ -93,6 +140,26 @@ bool VulkanApp::Initialize(const char* appName, const Win32Window& window)
         return false;
     }
 
+    if (!CreateCommandPool())
+    {
+        return false;
+    }
+
+    if (!CreateVertexBuffer())
+    {
+        return false;
+    }
+
+    if (!CreateCommandBuffers())
+    {
+        return false;
+    }
+
+    if (!CreateSyncObjects())
+    {
+        return false;
+    }
+
     initialized_ = true;
     std::cout << "Vulkan initialized through pipeline and framebuffers." << std::endl;
     return true;
@@ -100,45 +167,80 @@ bool VulkanApp::Initialize(const char* appName, const Win32Window& window)
 
 void VulkanApp::Cleanup()
 {
-    for (VkFramebuffer fb : framebuffers_)
-    {
-        vkDestroyFramebuffer(device_, fb, nullptr);
-    }
-    framebuffers_.clear();
-
-    if (graphicsPipeline_ != VK_NULL_HANDLE)
-    {
-        vkDestroyPipeline(device_, graphicsPipeline_, nullptr);
-        graphicsPipeline_ = VK_NULL_HANDLE;
-    }
-
-    if (pipelineLayout_ != VK_NULL_HANDLE)
-    {
-        vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
-        pipelineLayout_ = VK_NULL_HANDLE;
-    }
-
-    if (renderPass_ != VK_NULL_HANDLE)
-    {
-        vkDestroyRenderPass(device_, renderPass_, nullptr);
-        renderPass_ = VK_NULL_HANDLE;
-    }
-
-    for (VkImageView view : swapchainImageViews_)
-    {
-        vkDestroyImageView(device_, view, nullptr);
-    }
-    swapchainImageViews_.clear();
-
-    if (swapchain_ != VK_NULL_HANDLE)
-    {
-        vkDestroySwapchainKHR(device_, swapchain_, nullptr);
-        swapchain_ = VK_NULL_HANDLE;
-    }
-
     if (device_ != VK_NULL_HANDLE)
     {
         vkDeviceWaitIdle(device_);
+
+        for (size_t i = 0; i < imageAvailableSemaphores_.size(); ++i)
+        {
+            vkDestroySemaphore(device_, imageAvailableSemaphores_[i], nullptr);
+            vkDestroySemaphore(device_, renderFinishedSemaphores_[i], nullptr);
+        }
+        imageAvailableSemaphores_.clear();
+        renderFinishedSemaphores_.clear();
+
+        for (VkFence fence : inFlightFences_)
+        {
+            vkDestroyFence(device_, fence, nullptr);
+        }
+        inFlightFences_.clear();
+        imagesInFlight_.clear();
+
+        if (commandPool_ != VK_NULL_HANDLE)
+        {
+            vkDestroyCommandPool(device_, commandPool_, nullptr);
+            commandPool_ = VK_NULL_HANDLE;
+        }
+
+        if (vertexBuffer_ != VK_NULL_HANDLE)
+        {
+            vmaDestroyBuffer(allocator_, vertexBuffer_, vertexAllocation_);
+            vertexBuffer_ = VK_NULL_HANDLE;
+            vertexAllocation_ = VK_NULL_HANDLE;
+        }
+
+        if (allocator_ != VK_NULL_HANDLE)
+        {
+            vmaDestroyAllocator(allocator_);
+            allocator_ = VK_NULL_HANDLE;
+        }
+
+        for (VkFramebuffer fb : framebuffers_)
+        {
+            vkDestroyFramebuffer(device_, fb, nullptr);
+        }
+        framebuffers_.clear();
+
+        if (graphicsPipeline_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device_, graphicsPipeline_, nullptr);
+            graphicsPipeline_ = VK_NULL_HANDLE;
+        }
+
+        if (pipelineLayout_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
+            pipelineLayout_ = VK_NULL_HANDLE;
+        }
+
+        if (renderPass_ != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(device_, renderPass_, nullptr);
+            renderPass_ = VK_NULL_HANDLE;
+        }
+
+        for (VkImageView view : swapchainImageViews_)
+        {
+            vkDestroyImageView(device_, view, nullptr);
+        }
+        swapchainImageViews_.clear();
+
+        if (swapchain_ != VK_NULL_HANDLE)
+        {
+            vkDestroySwapchainKHR(device_, swapchain_, nullptr);
+            swapchain_ = VK_NULL_HANDLE;
+        }
+
         vkDestroyDevice(device_, nullptr);
         device_ = VK_NULL_HANDLE;
     }
@@ -723,9 +825,9 @@ bool VulkanApp::CreateRenderPass()
 
 bool VulkanApp::CreateGraphicsPipeline()
 {
-    // Precompiled SPIR-V for fullscreen triangle (gl_VertexIndex) and solid color output.
+    // Precompiled SPIR-V for a basic vertex-color pipeline.
     static const std::vector<uint32_t> vertexShaderSpv = {
-        0x07230203,0x00010000,0x000d000b,0x00000036,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,0x0008000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x00000022,0x00000026,0x00000031,0x00030003,0x00000002,0x000001c2,0x000a0004,0x475f4c47,0x4c474f4f,0x70635f45,0x74735f70,0x5f656c79,0x656e696c,0x7269645f,0x69746365,0x00006576,0x00080004,0x475f4c47,0x4c474f4f,0x6e695f45,0x64756c63,0x69645f65,0x74636572,0x00657669,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00050005,0x0000000c,0x69736f70,0x6e6f6974,0x00000073,0x00040005,0x00000017,0x6f6c6f63,0x00007372,0x00060005,0x00000020,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x00000020,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,0x00070006,0x00000020,0x00000001,0x505f6c67,0x746e696f,0x657a6953,0x00000000,0x00070006,0x00000020,0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,0x00070006,0x00000020,0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,0x00030005,0x00000022,0x00000000,0x00060005,0x00000026,0x565f6c67,0x65747265,0x646e4978,0x00007865,0x00050005,0x00000031,0x67617266,0x6f6c6f43,0x00000072,0x00030047,0x00000020,0x00000002,0x00050048,0x00000020,0x00000000,0x0000000b,0x00000000,0x00050048,0x00000020,0x00000001,0x0000000b,0x00000001,0x00050048,0x00000020,0x00000002,0x0000000b,0x00000003,0x00050048,0x00000020,0x00000003,0x0000000b,0x00000004,0x00040047,0x00000026,0x0000000b,0x0000002a,0x00040047,0x00000031,0x0000001e,0x00000000,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000002,0x00040015,0x00000008,0x00000020,0x00000000,0x0004002b,0x00000008,0x00000009,0x00000003,0x0004001c,0x0000000a,0x00000007,0x00000009,0x00040020,0x0000000b,0x00000006,0x0000000a,0x0004003b,0x0000000b,0x0000000c,0x00000006,0x0004002b,0x00000006,0x0000000d,0x00000000,0x0004002b,0x00000006,0x0000000e,0xbf000000,0x0005002c,0x00000007,0x0000000f,0x0000000d,0x0000000e,0x0004002b,0x00000006,0x00000010,0x3f000000,0x0005002c,0x00000007,0x00000011,0x00000010,0x00000010,0x0005002c,0x00000007,0x00000012,0x0000000e,0x00000010,0x0006002c,0x0000000a,0x00000013,0x0000000f,0x00000011,0x00000012,0x00040017,0x00000014,0x00000006,0x00000003,0x0004001c,0x00000015,0x00000014,0x00000009,0x00040020,0x00000016,0x00000006,0x00000015,0x0004003b,0x00000016,0x00000017,0x00000006,0x0004002b,0x00000006,0x00000018,0x3f800000,0x0006002c,0x00000014,0x00000019,0x00000018,0x0000000d,0x0000000d,0x0006002c,0x00000014,0x0000001a,0x0000000d,0x00000018,0x0000000d,0x0006002c,0x00000014,0x0000001b,0x0000000d,0x0000000d,0x00000018,0x0006002c,0x00000015,0x0000001c,0x00000019,0x0000001a,0x0000001b,0x00040017,0x0000001d,0x00000006,0x00000004,0x0004002b,0x00000008,0x0000001e,0x00000001,0x0004001c,0x0000001f,0x00000006,0x0000001e,0x0006001e,0x00000020,0x0000001d,0x00000006,0x0000001f,0x0000001f,0x00040020,0x00000021,0x00000003,0x00000020,0x0004003b,0x00000021,0x00000022,0x00000003,0x00040015,0x00000023,0x00000020,0x00000001,0x0004002b,0x00000023,0x00000024,0x00000000,0x00040020,0x00000025,0x00000001,0x00000023,0x0004003b,0x00000025,0x00000026,0x00000001,0x00040020,0x00000028,0x00000006,0x00000007,0x00040020,0x0000002e,0x00000003,0x0000001d,0x00040020,0x00000030,0x00000003,0x00000014,0x0004003b,0x00000030,0x00000031,0x00000003,0x00040020,0x00000033,0x00000006,0x00000014,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0003003e,0x0000000c,0x00000013,0x0003003e,0x00000017,0x0000001c,0x0004003d,0x00000023,0x00000027,0x00000026,0x00050041,0x00000028,0x00000029,0x0000000c,0x00000027,0x0004003d,0x00000007,0x0000002a,0x00000029,0x00050051,0x00000006,0x0000002b,0x0000002a,0x00000000,0x00050051,0x00000006,0x0000002c,0x0000002a,0x00000001,0x00070050,0x0000001d,0x0000002d,0x0000002b,0x0000002c,0x0000000d,0x00000018,0x00050041,0x0000002e,0x0000002f,0x00000022,0x00000024,0x0003003e,0x0000002f,0x0000002d,0x0004003d,0x00000023,0x00000032,0x00000026,0x00050041,0x00000033,0x00000034,0x00000017,0x00000032,0x0004003d,0x00000014,0x00000035,0x00000034,0x0003003e,0x00000031,0x00000035,0x000100fd,0x00010038};
+        0x07230203,0x00010000,0x000d000b,0x00000021,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,0x0009000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x0000000d,0x00000012,0x0000001d,0x0000001f,0x00030003,0x00000002,0x000001c2,0x000a0004,0x475f4c47,0x4c474f4f,0x70635f45,0x74735f70,0x5f656c79,0x656e696c,0x7269645f,0x69746365,0x00006576,0x00080004,0x475f4c47,0x4c474f4f,0x6e695f45,0x64756c63,0x69645f65,0x74636572,0x00657669,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00060005,0x0000000b,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x0000000b,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,0x00070006,0x0000000b,0x00000001,0x505f6c67,0x746e696f,0x657a6953,0x00000000,0x00070006,0x0000000b,0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,0x00070006,0x0000000b,0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,0x00030005,0x0000000d,0x00000000,0x00040005,0x00000012,0x6f506e69,0x00000073,0x00050005,0x0000001d,0x67617266,0x6f6c6f43,0x00000072,0x00040005,0x0000001f,0x6f436e69,0x00726f6c,0x00030047,0x0000000b,0x00000002,0x00050048,0x0000000b,0x00000000,0x0000000b,0x00000000,0x00050048,0x0000000b,0x00000001,0x0000000b,0x00000001,0x00050048,0x0000000b,0x00000002,0x0000000b,0x00000003,0x00050048,0x0000000b,0x00000003,0x0000000b,0x00000004,0x00040047,0x00000012,0x0000001e,0x00000000,0x00040047,0x0000001d,0x0000001e,0x00000000,0x00040047,0x0000001f,0x0000001e,0x00000001,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000004,0x00040015,0x00000008,0x00000020,0x00000000,0x0004002b,0x00000008,0x00000009,0x00000001,0x0004001c,0x0000000a,0x00000006,0x00000009,0x0006001e,0x0000000b,0x00000007,0x00000006,0x0000000a,0x0000000a,0x00040020,0x0000000c,0x00000003,0x0000000b,0x0004003b,0x0000000c,0x0000000d,0x00000003,0x00040015,0x0000000e,0x00000020,0x00000001,0x0004002b,0x0000000e,0x0000000f,0x00000000,0x00040017,0x00000010,0x00000006,0x00000002,0x00040020,0x00000011,0x00000001,0x00000010,0x0004003b,0x00000011,0x00000012,0x00000001,0x0004002b,0x00000006,0x00000014,0x00000000,0x0004002b,0x00000006,0x00000015,0x3f800000,0x00040020,0x00000019,0x00000003,0x00000007,0x00040017,0x0000001b,0x00000006,0x00000003,0x00040020,0x0000001c,0x00000003,0x0000001b,0x0004003b,0x0000001c,0x0000001d,0x00000003,0x00040020,0x0000001e,0x00000001,0x0000001b,0x0004003b,0x0000001e,0x0000001f,0x00000001,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x00000010,0x00000013,0x00000012,0x00050051,0x00000006,0x00000016,0x00000013,0x00000000,0x00050051,0x00000006,0x00000017,0x00000013,0x00000001,0x00070050,0x00000007,0x00000018,0x00000016,0x00000017,0x00000014,0x00000015,0x00050041,0x00000019,0x0000001a,0x0000000d,0x0000000f,0x0003003e,0x0000001a,0x00000018,0x0004003d,0x0000001b,0x00000020,0x0000001f,0x0003003e,0x0000001d,0x00000020,0x000100fd,0x00010038};
 
     static const std::vector<uint32_t> fragmentShaderSpv = {
         0x07230203,0x00010000,0x000d000b,0x00000013,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,0x0007000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000c,0x00030010,0x00000004,0x00000007,0x00030003,0x00000002,0x000001c2,0x000a0004,0x475f4c47,0x4c474f4f,0x70635f45,0x74735f70,0x5f656c79,0x656e696c,0x7269645f,0x69746365,0x00006576,0x00080004,0x475f4c47,0x4c474f4f,0x6e695f45,0x64756c63,0x69645f65,0x74636572,0x00657669,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00050005,0x00000009,0x4374756f,0x726f6c6f,0x00000000,0x00050005,0x0000000c,0x67617266,0x6f6c6f43,0x00000072,0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000c,0x0000001e,0x00000000,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000004,0x00040020,0x00000008,0x00000003,0x00000007,0x0004003b,0x00000008,0x00000009,0x00000003,0x00040017,0x0000000a,0x00000006,0x00000003,0x00040020,0x0000000b,0x00000001,0x0000000a,0x0004003b,0x0000000b,0x0000000c,0x00000001,0x0004002b,0x00000006,0x0000000e,0x3f800000,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x0000000a,0x0000000d,0x0000000c,0x00050051,0x00000006,0x0000000f,0x0000000d,0x00000000,0x00050051,0x00000006,0x00000010,0x0000000d,0x00000001,0x00050051,0x00000006,0x00000011,0x0000000d,0x00000002,0x00070050,0x00000007,0x00000012,0x0000000f,0x00000010,0x00000011,0x0000000e,0x0003003e,0x00000009,0x00000012,0x000100fd,0x00010038};
@@ -754,12 +856,15 @@ bool VulkanApp::CreateGraphicsPipeline()
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
+    VkVertexInputBindingDescription bindingDescription = GetBindingDescription();
+    auto attributeDescriptions = GetAttributeDescriptions();
+
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 0;
-    vertexInputInfo.pVertexBindingDescriptions = nullptr;
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -877,6 +982,236 @@ bool VulkanApp::CreateFramebuffers()
         }
     }
 
+    return true;
+}
+
+bool VulkanApp::CreateAllocator()
+{
+    VmaVulkanFunctions vulkanFunctions{};
+    vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+    vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+
+    VmaAllocatorCreateInfo allocatorInfo{};
+    allocatorInfo.physicalDevice = physicalDevice_;
+    allocatorInfo.device = device_;
+    allocatorInfo.instance = instance_;
+    allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+    allocatorInfo.pVulkanFunctions = &vulkanFunctions;
+
+    VkResult result = vmaCreateAllocator(&allocatorInfo, &allocator_);
+    if (result != VK_SUCCESS)
+    {
+        std::cerr << "Failed to create VMA allocator: " << result << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool VulkanApp::CreateVertexBuffer()
+{
+    VkDeviceSize bufferSize = sizeof(kVertices[0]) * kVertices.size();
+
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = bufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                      VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VmaAllocationInfo allocationInfo{};
+    VkResult result = vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &vertexBuffer_, &vertexAllocation_, &allocationInfo);
+    if (result != VK_SUCCESS)
+    {
+        std::cerr << "Failed to create vertex buffer: " << result << std::endl;
+        return false;
+    }
+
+    std::memcpy(allocationInfo.pMappedData, kVertices.data(), static_cast<size_t>(bufferSize));
+    return true;
+}
+
+bool VulkanApp::CreateCommandPool()
+{
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    poolInfo.queueFamilyIndex = queueFamilies_.graphicsFamily.value();
+
+    VkResult result = vkCreateCommandPool(device_, &poolInfo, nullptr, &commandPool_);
+    if (result != VK_SUCCESS)
+    {
+        std::cerr << "Failed to create command pool: " << result << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool VulkanApp::CreateCommandBuffers()
+{
+    commandBuffers_.resize(swapchainImages_.size());
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = commandPool_;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers_.size());
+
+    VkResult result = vkAllocateCommandBuffers(device_, &allocInfo, commandBuffers_.data());
+    if (result != VK_SUCCESS)
+    {
+        std::cerr << "Failed to allocate command buffers: " << result << std::endl;
+        return false;
+    }
+
+    for (uint32_t i = 0; i < commandBuffers_.size(); ++i)
+    {
+        RecordCommandBuffer(commandBuffers_[i], i);
+    }
+
+    return true;
+}
+
+bool VulkanApp::CreateSyncObjects()
+{
+    imageAvailableSemaphores_.resize(MAX_FRAMES_IN_FLIGHT);
+    renderFinishedSemaphores_.resize(MAX_FRAMES_IN_FLIGHT);
+    inFlightFences_.resize(MAX_FRAMES_IN_FLIGHT);
+    imagesInFlight_.resize(swapchainImages_.size(), VK_NULL_HANDLE);
+
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+    {
+        if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &imageAvailableSemaphores_[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &renderFinishedSemaphores_[i]) != VK_SUCCESS ||
+            vkCreateFence(device_, &fenceInfo, nullptr, &inFlightFences_[i]) != VK_SUCCESS)
+        {
+            std::cerr << "Failed to create synchronization objects for frame " << i << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void VulkanApp::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+{
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = renderPass_;
+    renderPassInfo.framebuffer = framebuffers_[imageIndex];
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = swapchainExtent_;
+
+    VkClearValue clearColor{};
+    clearColor.color = {{0.1f, 0.1f, 0.2f, 1.0f}};
+    renderPassInfo.clearValueCount = 1;
+    renderPassInfo.pClearValues = &clearColor;
+
+    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline_);
+
+    VkBuffer vertexBuffers[] = {vertexBuffer_};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+    vkCmdDraw(commandBuffer, static_cast<uint32_t>(kVertices.size()), 1, 0, 0);
+
+    vkCmdEndRenderPass(commandBuffer);
+
+    vkEndCommandBuffer(commandBuffer);
+}
+
+bool VulkanApp::DrawFrame(const Win32Window& window)
+{
+    (void)window;
+
+    vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
+
+    uint32_t imageIndex = 0;
+    VkResult acquireResult = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX,
+                                                   imageAvailableSemaphores_[currentFrame_],
+                                                   VK_NULL_HANDLE, &imageIndex);
+
+    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        return true; // swapchain recreation would be needed; skipped for now.
+    }
+    if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR)
+    {
+        std::cerr << "Failed to acquire swapchain image: " << acquireResult << std::endl;
+        return false;
+    }
+
+    if (imagesInFlight_[imageIndex] != VK_NULL_HANDLE)
+    {
+        vkWaitForFences(device_, 1, &imagesInFlight_[imageIndex], VK_TRUE, UINT64_MAX);
+    }
+    imagesInFlight_[imageIndex] = inFlightFences_[currentFrame_];
+
+    vkResetFences(device_, 1, &inFlightFences_[currentFrame_]);
+
+    vkResetCommandBuffer(commandBuffers_[imageIndex], 0);
+    RecordCommandBuffer(commandBuffers_[imageIndex], imageIndex);
+
+    VkSemaphore waitSemaphores[] = {imageAvailableSemaphores_[currentFrame_]};
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores_[currentFrame_]};
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = waitSemaphores;
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffers_[imageIndex];
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = signalSemaphores;
+
+    if (vkQueueSubmit(graphicsQueue_, 1, &submitInfo, inFlightFences_[currentFrame_]) != VK_SUCCESS)
+    {
+        std::cerr << "Failed to submit draw command buffer." << std::endl;
+        return false;
+    }
+
+    VkSwapchainKHR swapchains[] = {swapchain_};
+
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = signalSemaphores;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = swapchains;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.pResults = nullptr;
+
+    VkResult presentResult = vkQueuePresentKHR(presentQueue_, &presentInfo);
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
+    {
+        // Swapchain recreation to be handled in resize step.
+    }
+    else if (presentResult != VK_SUCCESS)
+    {
+        std::cerr << "Failed to present swapchain image: " << presentResult << std::endl;
+        return false;
+    }
+
+    currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
     return true;
 }
 
