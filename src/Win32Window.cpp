@@ -2,6 +2,16 @@
 
 #include <iostream>
 
+WindowSize Win32Window::GetClientSize() const
+{
+    RECT rect{};
+    if (hwnd_ && GetClientRect(hwnd_, &rect))
+    {
+        return {static_cast<uint32_t>(rect.right - rect.left), static_cast<uint32_t>(rect.bottom - rect.top)};
+    }
+    return {};
+}
+
 Win32Window::Win32Window(HINSTANCE instance, const char* title, int width, int height)
     : hInstance_(instance)
 {

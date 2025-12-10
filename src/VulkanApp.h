@@ -41,18 +41,35 @@ public:
     VkQueue GetPresentQueue() const { return presentQueue_; }
     QueueFamilyIndices GetQueueFamilies() const { return queueFamilies_; }
     const std::string& GetSelectedGpuName() const { return selectedGpuName_; }
+    VkSwapchainKHR GetSwapchain() const { return swapchain_; }
+    VkFormat GetSwapchainImageFormat() const { return swapchainImageFormat_; }
+    VkExtent2D GetSwapchainExtent() const { return swapchainExtent_; }
+    const std::vector<VkImageView>& GetSwapchainImageViews() const { return swapchainImageViews_; }
 
 private:
+    struct SwapChainSupportDetails
+    {
+        VkSurfaceCapabilitiesKHR capabilities{};
+        std::vector<VkSurfaceFormatKHR> formats;
+        std::vector<VkPresentModeKHR> presentModes;
+    };
+
     bool CreateInstance(const char* appName);
     bool SetupDebugMessenger();
     bool CreateSurface(const Win32Window& window);
     bool PickPhysicalDevice();
     bool CreateLogicalDevice();
+    bool CreateSwapchain(const Win32Window& window);
+    bool CreateImageViews();
 
     bool CheckValidationLayerSupport() const;
     std::vector<const char*> GatherRequiredExtensions();
     bool CheckDeviceExtensionSupport(VkPhysicalDevice device) const;
     QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) const;
+    SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device) const;
+    VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) const;
+    VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) const;
+    VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, const Win32Window& window) const;
 
     bool initialized_ = false;
     bool validationEnabled_ = false;
@@ -67,6 +84,12 @@ private:
     VkQueue presentQueue_ = VK_NULL_HANDLE;
     QueueFamilyIndices queueFamilies_{};
     std::string selectedGpuName_;
+
+    VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
+    std::vector<VkImage> swapchainImages_;
+    std::vector<VkImageView> swapchainImageViews_;
+    VkFormat swapchainImageFormat_ = VK_FORMAT_UNDEFINED;
+    VkExtent2D swapchainExtent_{};
 
     const std::vector<const char*> validationLayers_{"VK_LAYER_KHRONOS_validation"};
     const std::vector<const char*> deviceExtensions_{VK_KHR_SWAPCHAIN_EXTENSION_NAME};

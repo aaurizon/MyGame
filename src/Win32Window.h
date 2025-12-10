@@ -2,6 +2,13 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <cstdint>
+
+struct WindowSize
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+};
 
 class Win32Window
 {
@@ -15,6 +22,7 @@ public:
     HWND GetHwnd() const { return hwnd_; }
     HINSTANCE GetInstance() const { return hInstance_; }
     bool IsValid() const { return hwnd_ != nullptr; }
+    WindowSize GetClientSize() const;
 
     // Returns false when WM_QUIT is received or an error occurs.
     bool PumpMessages(MSG& msg);
