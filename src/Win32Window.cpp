@@ -12,6 +12,13 @@ WindowSize Win32Window::GetClientSize() const
     return {};
 }
 
+bool Win32Window::ConsumeResizeFlag()
+{
+    bool wasResized = framebufferResized_;
+    framebufferResized_ = false;
+    return wasResized;
+}
+
 Win32Window::Win32Window(HINSTANCE instance, const char* title, int width, int height)
     : hInstance_(instance)
 {
@@ -115,6 +122,12 @@ LRESULT CALLBACK Win32Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
     {
     case WM_DESTROY:
         PostQuitMessage(0);
+        return 0;
+    case WM_SIZE:
+        if (window)
+        {
+            window->framebufferResized_ = true;
+        }
         return 0;
 
     case WM_PAINT:

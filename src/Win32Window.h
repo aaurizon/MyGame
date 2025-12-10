@@ -23,6 +23,8 @@ public:
     HINSTANCE GetInstance() const { return hInstance_; }
     bool IsValid() const { return hwnd_ != nullptr; }
     WindowSize GetClientSize() const;
+    // Returns true if a resize occurred since last check and resets the flag.
+    bool ConsumeResizeFlag();
 
     // Pumps all pending messages; returns false when WM_QUIT is received or an error occurs.
     bool PumpMessages(MSG& msg);
@@ -35,4 +37,5 @@ private:
     HINSTANCE hInstance_{};
     HWND hwnd_{};
     const char* className_ = "VulkanWin32WindowClass";
+    bool framebufferResized_ = false;
 };

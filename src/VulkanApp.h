@@ -1,6 +1,5 @@
 #pragma once
 
-#define VK_USE_PLATFORM_WIN32_KHR
 #include <volk/volk.h>
 
 #include <optional>
@@ -35,7 +34,7 @@ public:
 
     bool Initialize(const char* appName, const Win32Window& window);
     void Cleanup();
-    bool DrawFrame(const Win32Window& window);
+    bool DrawFrame(Win32Window& window);
 
     bool IsInitialized() const { return initialized_; }
 

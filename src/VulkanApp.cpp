@@ -1142,12 +1142,20 @@ void VulkanApp::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imag
     vkEndCommandBuffer(commandBuffer);
 }
 
-bool VulkanApp::DrawFrame(const Win32Window& window)
+bool VulkanApp::DrawFrame(Win32Window& window)
 {
     WindowSize size = window.GetClientSize();
     if (size.width == 0 || size.height == 0)
     {
         return true; // minimized; skip rendering
+    }
+
+    if (window.ConsumeResizeFlag())
+    {
+        if (!RecreateSwapchain(window))
+        {
+            return false;
+        }
     }
 
     vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
