@@ -56,6 +56,15 @@ int main(int argc, char* argv[])
                     window.setCursorGrabbed(cursorCaptured);
                     camera.setInputEnabled(cursorCaptured);
                 }
+                else if (keyPressed->scancode == EEventKey::Scancode::O)
+                {
+                    // Cycle through graphics backends.
+                    EGraphicsBackend current = window.getGraphicsBackend();
+                    EGraphicsBackend next = (current == EGraphicsBackend::Vulkan)
+                        ? EGraphicsBackend::OpenGL
+                        : EGraphicsBackend::Vulkan;
+                    window.setGraphicsBackend(next);
+                }
             }
 
             camera.dispatchEvent(event);

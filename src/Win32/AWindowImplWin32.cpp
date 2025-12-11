@@ -15,6 +15,7 @@ EEventKey::Scancode mapVirtualKey(WPARAM wParam) {
     case 'S': return EEventKey::Scancode::S;
     case 'D': return EEventKey::Scancode::D;
     case 'P': return EEventKey::Scancode::P;
+    case 'O': return EEventKey::Scancode::O;
     case VK_UP: return EEventKey::Scancode::Up;
     case VK_DOWN: return EEventKey::Scancode::Down;
     case VK_LEFT: return EEventKey::Scancode::Left;
