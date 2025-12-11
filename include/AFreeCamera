@@ -4,12 +4,13 @@
 #include <AViewport>
 #include <AEvent>
 #include <glm/glm.hpp>
+#include <memory>
 
 class AFreeCamera {
 public:
     AFreeCamera(AViewport& viewport, const glm::vec3& position, const glm::vec3& lookAt);
 
-    void dispatchEvent(const AEvent* event);
+    void dispatchEvent(const std::shared_ptr<AEvent>& event);
 
     const glm::vec3& getPosition() const;
     const glm::vec3& getForward() const;

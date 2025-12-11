@@ -11,7 +11,7 @@ AFreeCamera::AFreeCamera(AViewport& viewport, const glm::vec3& position, const g
     updateMatrices();
 }
 
-void AFreeCamera::dispatchEvent(const AEvent* event) {
+void AFreeCamera::dispatchEvent(const std::shared_ptr<AEvent>& event) {
     if (!event) {
         return;
     }
