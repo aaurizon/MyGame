@@ -38,7 +38,7 @@ C’est uniquement utile pour des installations automatisées.
 Runtime = C’est le composant que les joueurs doivent avoir pour exécuter des jeux Vulkan.
 Il ne contient pas les outils et headers nécessaires pour développer.
 
-RuntimeZip =Les mêmes runtimes que ci-dessus, mais sous forme zip (utiles pour une intégration manuelle). 
+RuntimeZip =Les mêmes runtimes que ci-dessus, mais sous forme zip (utiles pour une intégration manuelle).
 
 Prendre l'installer
 

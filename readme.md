@@ -1,78 +1,68 @@
-# Requirements
+# ANNA Engine (AEngine)
 
-## Quick start (CMake)
+AEngine is a modern, lightweight, and portable 3D graphics and game engine written in C++.  
+It is designed with a strong focus on **KISS principles**, providing developers with a clean, intuitive, and highly efficient API for building games and real-time applications.
 
-1. Install the Vulkan SDK and update `VULKAN_SDK_ROOT` in `CMakeLists.txt` if it differs from the default `C:/VulkanSDK/1.4.335.0`.
-2. Configure: `cmake -S . -B build`
-3. Build: `cmake --build build`
-4. Run: `./build/MyGame` (from the repo root). Use `WASD`/arrow keys to move the camera and the mouse to look around. Press `Esc` to close the window.
+## Key Features
 
-The engine targets Windows/Win32 today with OpenGL, Vulkan, and placeholder DirectX 11/12 backends; each render window (child or standalone) can pick its backend at runtime through `ARenderWindow::setGraphicsBackend`.
+- **Object-oriented C++ architecture** with modern design practices.
+- **Cross-platform support**:
+    - Windows over Win32 – Fully supported
+    - Linux over X11 – In development
+    - macOS (planned)
+- **Multiple graphics backends**:
+    - OpenGL Core 3.2+
+    - DirectX 11
+    - DirectX 12
+    - Vulkan
+    - Metal (planned)
+- **High performance**: Designed around low-level control, minimal overhead, and efficient rendering paths.
+- **Simplicity first**: The API aims to be extremely easy to use while still providing access to advanced engine and rendering features.
+- **Engine techniques inspired by modern game development**: clean abstractions, component-based logic (if applicable), optimized loops, and hardware-friendly design.
 
-## MinGW
+## Philosophy
 
-LLVCM ou MinGW-W64 (x86_64-15.2.0-release-posix-seh-ucrt-rt_v13-rev0)
+AEngine follows two core ideas:
 
-x32 = i686
-x64 = x86_64 (recommandé)
+1. **Keep It Simple for Developers**  
+   The engine exposes only what is necessary, avoiding complexity when not required. Clear naming, predictable workflows, and minimal boilerplate allow fast iteration and experimentation.
 
-mcf   = thread plus performant que posix
-posix = utilise winpthreads (recommandé)
-win32 = windows official threads
+2. **Performance and Portability**  
+   Internally, the engine uses robust and modern techniques to ensure performance across platforms and graphics APIs. The goal is to offer the same engine experience wherever it runs.
 
-msvcrt = legacy
-ucrt   = nouveau standard (recommandé)
+## Platform Support
 
-https://www.mingw-w64.org/downloads/
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Windows  | ✔️ Supported | Win32 backend stable |
+| Linux    | 🔧 In progress | X11 backend under development |
+| macOS    | ⏳ Planned | Coming soon |
 
-## Vulkan
+## Graphics API Support
 
-https://vulkan.lunarg.com/sdk/home
+| Graphics API | Status |
+|--------------|--------|
+| OpenGL Core (3.2+) | ✔️ Supported |
+| DirectX 11 | ✔️ Supported |
+| DirectX 12 | ✔️ Supported |
+| Vulkan | ✔️ Supported |
+| Metal | ⏳ Planned |
 
-Installer = C’est l’environnement complet destiné aux programmeurs.
+## Getting Started
 
-Config = Simple fichier de configuration utilisé par l’installeur du SDK.
-pas besoin si tu utilises l’installeur standard.
-C’est uniquement utile pour des installations automatisées.
+### Requirements
 
-Runtime = C’est le composant que les joueurs doivent avoir pour exécuter des jeux Vulkan.
-Il ne contient pas les outils et headers nécessaires pour développer.
+- A C++17 (or later) compatible compiler
+- CMake (recommended for project configuration)
+- Platform SDKs depending on the selected backend:
+    - Win32 SDK for Windows
+    - X11 development packages for Linux
+    - Graphics SDKs: DirectX, Vulkan SDK, etc.
 
-RuntimeZip =Les mêmes runtimes que ci-dessus, mais sous forme zip (utiles pour une intégration manuelle). 
+### Building the Engine
 
-Prendre l'installer
-
-### Vulkan SDK – Extra Components (Quick Summary)
-
-**GLM Headers**  
-Math library (vectors, matrices, quaternions) compatible with GLSL.  
-Recommended for any 3D engine development.  
-**Use: Yes**
-
-**SDL Libraries and Headers**  
-Window creation, input handling, and Vulkan surface support.  
-Useful for cross-platform engines.  
-Except if you use GLFW/Win32
-**Use: Yes**
-
-**Volk**  
-Meta-loader that dynamically loads Vulkan function pointers.  
-Simplifies initialization and improves portability.  
-**Use: Yes**
-
-**Vulkan Memory Allocator (VMA)**  
-High-level GPU memory allocator.  
-Greatly simplifies Vulkan memory management.  
-**Use: Yes**
-
-**Shader Toolchain Debug Symbols**  
-Debug symbols for GLSL/SPIR-V tools.  
-Not required for normal development.  
-**Use: Optional**
-
-**ARM64 Binaries for Cross-Compiling**  
-Tools for building Vulkan applications targeting ARM64.  
-Not needed when developing only for Windows x64.  
-**Use: No (unless targeting ARM64)**
-
-
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build .
