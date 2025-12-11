@@ -97,18 +97,36 @@ void VulkanRenderer::draw(const AViewport& viewport) {
     const glm::mat4 view = viewport.getViewMatrix();
     const glm::mat4 projection = viewport.getProjectionMatrix();
 
-    // Draw each entity as a filled polygon using screen-space coordinates.
+    struct Primitive {
+        std::vector<POINT> points;
+        std::vector<AEntity::Color> colors;
+        bool hasPerVertexColors{false};
+        bool isTriangle{false};
+        float depth{0.0f}; // normalized depth (0 near, 1 far)
+        AEntity::Color uniformColor;
+    };
+
+    std::vector<Primitive> primitives;
+    primitives.reserve(world_->getEntities().size());
+
     for (const auto& entityPtr : world_->getEntities()) {
         const auto& vertices = entityPtr->getVertices();
-        if (vertices.empty()) {
+        if (vertices.size() < 3) {
             continue;
         }
 
         const glm::mat4 model = glm::translate(glm::mat4(1.0f), entityPtr->getPosition());
         const glm::mat4 mvp = projection * view * model;
 
-        std::vector<POINT> points;
-        points.reserve(vertices.size());
+        Primitive prim;
+        prim.points.reserve(vertices.size());
+        prim.colors = entityPtr->getVertexColors();
+        prim.hasPerVertexColors = prim.colors.size() == vertices.size();
+        prim.isTriangle = vertices.size() == 3;
+        prim.uniformColor = entityPtr->getColor();
+
+        float depthAccum = 0.0f;
+        int depthCount = 0;
 
         for (const auto& v : vertices) {
             glm::vec4 clip = mvp * glm::vec4(v, 1.0f);
@@ -119,46 +137,57 @@ void VulkanRenderer::draw(const AViewport& viewport) {
             POINT p{};
             p.x = static_cast<LONG>((ndc.x * 0.5f + 0.5f) * static_cast<float>(viewport.getWidth()));
             p.y = static_cast<LONG>((1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(viewport.getHeight()));
-            points.push_back(p);
+            prim.points.push_back(p);
+
+            // Depth in [0,1]: map OpenGL NDC (-1,1) to depth.
+            const float depth01 = ndc.z * 0.5f + 0.5f;
+            depthAccum += depth01;
+            depthCount++;
         }
 
-        if (points.size() < 3) {
+        if (prim.points.size() < 3 || depthCount == 0) {
             continue;
         }
 
-        const auto& vertexColors = entityPtr->getVertexColors();
-        const bool hasPerVertexColors = vertexColors.size() == vertices.size();
+        prim.depth = depthAccum / static_cast<float>(depthCount);
+        primitives.push_back(std::move(prim));
+    }
 
-        if (points.size() == 3 && hasPerVertexColors) {
-            // Use Win32 GradientFill to approximate per-vertex coloring for triangles.
+    // Painter's algorithm: draw far-to-near to mimic depth.
+    std::sort(primitives.begin(), primitives.end(), [](const Primitive& a, const Primitive& b) {
+        return a.depth > b.depth; // far (larger depth) first
+    });
+
+    for (const auto& prim : primitives) {
+        if (prim.isTriangle && prim.hasPerVertexColors) {
             TRIVERTEX triVerts[3]{};
             for (size_t i = 0; i < 3; ++i) {
-                triVerts[i].x = points[i].x;
-                triVerts[i].y = points[i].y;
+                triVerts[i].x = prim.points[i].x;
+                triVerts[i].y = prim.points[i].y;
                 auto clampToByte = [](float v) {
                     return static_cast<COLOR16>(std::clamp(v, 0.0f, 1.0f) * 255.0f) * 0x0101;
                 };
-                triVerts[i].Red = clampToByte(vertexColors[i].r);
-                triVerts[i].Green = clampToByte(vertexColors[i].g);
-                triVerts[i].Blue = clampToByte(vertexColors[i].b);
-                triVerts[i].Alpha = clampToByte(vertexColors[i].a);
+                triVerts[i].Red = clampToByte(prim.colors[i].r);
+                triVerts[i].Green = clampToByte(prim.colors[i].g);
+                triVerts[i].Blue = clampToByte(prim.colors[i].b);
+                triVerts[i].Alpha = clampToByte(prim.colors[i].a);
             }
             GRADIENT_TRIANGLE tri{0, 1, 2};
             GradientFill(backBufferDC_, triVerts, 3, &tri, 1, GRADIENT_FILL_TRIANGLE);
         } else {
-            // Fallback renderer fills a single color; if per-vertex colors are present, use an average.
-            AEntity::Color color = entityPtr->getColor();
-            if (hasPerVertexColors && !vertexColors.empty()) {
+            AEntity::Color color = prim.uniformColor;
+            if (prim.hasPerVertexColors) {
                 float r = 0.0f, g = 0.0f, b = 0.0f;
-                for (const auto& c : vertexColors) {
+                for (const auto& c : prim.colors) {
                     r += c.r;
                     g += c.g;
                     b += c.b;
                 }
-                const float inv = 1.0f / static_cast<float>(vertexColors.size());
+                const float inv = 1.0f / static_cast<float>(prim.colors.size());
                 color.r = r * inv;
                 color.g = g * inv;
                 color.b = b * inv;
+                color.a = 1.0f;
             }
 
             const COLORREF rgb = RGB(
@@ -171,7 +200,7 @@ void VulkanRenderer::draw(const AViewport& viewport) {
             HPEN pen = CreatePen(PS_SOLID, 1, rgb);
             HPEN oldPen = (HPEN)SelectObject(backBufferDC_, pen);
 
-            Polygon(backBufferDC_, points.data(), static_cast<int>(points.size()));
+            Polygon(backBufferDC_, prim.points.data(), static_cast<int>(prim.points.size()));
 
             SelectObject(backBufferDC_, oldBrush);
             SelectObject(backBufferDC_, oldPen);

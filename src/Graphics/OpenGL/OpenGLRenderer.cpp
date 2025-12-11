@@ -95,6 +95,8 @@ void OpenGLRenderer::setupContext(HWND hwnd) {
 
 void OpenGLRenderer::setupState() {
     glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glClearDepth(1.0);
     glClearColor(0.05f, 0.07f, 0.1f, 1.0f);
 }
 
