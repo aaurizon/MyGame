@@ -1,16 +1,22 @@
-// Base window abstraction that owns a platform window and an event pump.
+// Base window abstraction that owns a platform window, event pump, and optional renderer.
 #pragma once
 
 #include <AEvent>
+#include <AViewport>
+#include <EGraphicsBackend>
 #include <memory>
 #include <string>
 #include <vector>
 
 class IWindowImpl;
+class IRendererImpl;
 
 class AWindow {
 public:
-    AWindow(const std::string& title, int width, int height);
+    // Top-level window with optional rendering backend (defaults to none).
+    AWindow(const std::string& title, int width, int height, EGraphicsBackend backend = EGraphicsBackend::None);
+    // Child window attached to a parent; position given relative to parent client area.
+    AWindow(AWindow& parent, int x, int y, int width, int height, EGraphicsBackend backend);
     virtual ~AWindow();
 
     bool isOpen() const;
@@ -27,7 +33,22 @@ public:
     void* getNativeHandle() const;
     void setRect(int x, int y, int width, int height);
 
+    void display();
+
+    void setGraphicsBackend(EGraphicsBackend backend);
+    EGraphicsBackend getGraphicsBackend() const;
+
+    AViewport& getViewport();
+
 protected:
-    AWindow(const std::string& title, int width, int height, void* parentHandle, int x, int y, bool child);
+    AWindow(const std::string& title, int width, int height, void* parentHandle, int x, int y, bool child, EGraphicsBackend backend);
+
+    void recreateRenderer(int width, int height);
+
     std::unique_ptr<IWindowImpl> impl_;
+    std::unique_ptr<IRendererImpl> renderer_;
+    AViewport viewport_{1, 1};
+    EGraphicsBackend backend_{EGraphicsBackend::None};
+    int lastWidth_{0};
+    int lastHeight_{0};
 };

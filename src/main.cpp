@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 #include <AWindow>
-#include <ARenderWindow>
 #include <AViewport>
 #include <AWorld>
 #include <AEntity>
@@ -26,10 +25,10 @@ int main(int argc, char* argv[])
     const int halfHeight = initialHeight / 2;
 
     // 4 render windows: top-left OpenGL, top-right Vulkan, bottom-left DX11, bottom-right DX12.
-    ARenderWindow glRender(mainWindow, 0, 0, halfWidth, halfHeight, EGraphicsBackend::OpenGL);
-    ARenderWindow vkRender(mainWindow, halfWidth, 0, initialWidth - halfWidth, halfHeight, EGraphicsBackend::Vulkan);
-    ARenderWindow dx11Render(mainWindow, 0, halfHeight, halfWidth, initialHeight - halfHeight, EGraphicsBackend::DirectX11);
-    ARenderWindow dx12Render(mainWindow, halfWidth, halfHeight, initialWidth - halfWidth, initialHeight - halfHeight, EGraphicsBackend::DirectX12);
+    AWindow glRender(mainWindow, 0, 0, halfWidth, halfHeight, EGraphicsBackend::OpenGL);
+    AWindow vkRender(mainWindow, halfWidth, 0, initialWidth - halfWidth, halfHeight, EGraphicsBackend::Vulkan);
+    AWindow dx11Render(mainWindow, 0, halfHeight, halfWidth, initialHeight - halfHeight, EGraphicsBackend::DirectX11);
+    AWindow dx12Render(mainWindow, halfWidth, halfHeight, initialWidth - halfWidth, initialHeight - halfHeight, EGraphicsBackend::DirectX12);
 
     AViewport& viewportGL = glRender.getViewport();
     AViewport& viewportVK = vkRender.getViewport();

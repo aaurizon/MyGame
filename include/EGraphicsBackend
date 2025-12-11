@@ -1,6 +1,7 @@
 #pragma once
 
 enum class EGraphicsBackend {
+    None,
     OpenGL,
     Vulkan,
     DirectX11,
