@@ -3,6 +3,9 @@
 #include <AEntity>
 #include <AWorld>
 #include <AViewport>
+#include <ARenderOverlay>
+#include <AText>
+#include <AFloatingText>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <array>

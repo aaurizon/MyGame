@@ -5,10 +5,10 @@
 #include <AFloatingText>
 #include <vector>
 
-class Overlay {
+class ARenderOverlay {
 public:
-    Overlay() = default;
-    ~Overlay() = default;
+    ARenderOverlay() = default;
+    ~ARenderOverlay() = default;
 
     AText& addText(const AText& text);
     AFloatingText& addFloatingText(const AFloatingText& text);

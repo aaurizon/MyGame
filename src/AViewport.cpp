@@ -69,11 +69,11 @@ const glm::mat4& AViewport::getProjectionMatrix() const {
     return projection_;
 }
 
-void AViewport::addOverlay(Overlay& overlay) {
+void AViewport::addOverlay(ARenderOverlay& overlay) {
     overlays_.push_back(&overlay);
 }
 
-void AViewport::removeOverlay(Overlay& overlay) {
+void AViewport::removeOverlay(ARenderOverlay& overlay) {
     overlays_.erase(std::remove(overlays_.begin(), overlays_.end(), &overlay), overlays_.end());
 }
 
@@ -81,6 +81,6 @@ void AViewport::clearOverlays() {
     overlays_.clear();
 }
 
-const std::vector<Overlay*>& AViewport::getOverlays() const {
+const std::vector<ARenderOverlay*>& AViewport::getOverlays() const {
     return overlays_;
 }

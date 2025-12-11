@@ -13,7 +13,7 @@
 #include <AEvent>
 #include <AText>
 #include <AFloatingText>
-#include <Overlay>
+#include <ARenderOverlay>
 #include <EEventKey>
 
 int main(int argc, char* argv[])
@@ -67,7 +67,7 @@ int main(int argc, char* argv[])
     camera.setInputEnabled(cursorCaptured);
 
     // Overlays and floating texts.
-    Overlay hudOverlay;
+    ARenderOverlay hudOverlay;
     AText& fpsText = hudOverlay.addText(AText("FPS: 0.0", {12, 12}, true, 16, {0.9f, 0.9f, 0.9f, 1.0f}));
 
     const auto& triVerts = e1->getVertices();
