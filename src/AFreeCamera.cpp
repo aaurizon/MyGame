@@ -77,6 +77,12 @@ void AFreeCamera::handleKeyPressed(EEventKey::Scancode code) {
     case EEventKey::Scancode::Right:
         position_ += right * moveStep_;
         break;
+    case EEventKey::Scancode::R:
+        position_.z += moveStep_;
+        break;
+    case EEventKey::Scancode::F:
+        position_.z -= moveStep_;
+        break;
     default:
         break;
     }
@@ -85,8 +91,9 @@ void AFreeCamera::handleKeyPressed(EEventKey::Scancode code) {
 }
 
 void AFreeCamera::handleMouseMoved(const AEvent::MouseMoved* moveEvent) {
-    yaw_ += moveEvent->delta.x * mouseSensitivity_ * 0.01f;
-    pitch_ -= moveEvent->delta.y * mouseSensitivity_ * 0.01f;
+    // Mouse right turns camera right (positive yaw), mouse up pitches up.
+    yaw_ -= moveEvent->delta.x * mouseSensitivity_;
+    pitch_ -= moveEvent->delta.y * mouseSensitivity_;
 
     const float maxPitch = glm::radians(89.0f);
     if (pitch_ > maxPitch) pitch_ = maxPitch;

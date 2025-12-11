@@ -30,6 +30,6 @@ private:
     float yaw_{0.0f};
     float pitch_{0.0f};
     float moveStep_{1.0f};
-    float mouseSensitivity_{0.15f};
+    float mouseSensitivity_{0.0025f};
     bool inputEnabled_{true};
 };
