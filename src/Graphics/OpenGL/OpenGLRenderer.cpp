@@ -2,7 +2,34 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <algorithm>
 #include <cassert>
+#include <string>
+
+namespace {
+
+COLORREF toColorRef(const AEntity::Color& c) {
+    return RGB(
+        static_cast<BYTE>(std::clamp(c.r, 0.0f, 1.0f) * 255.0f),
+        static_cast<BYTE>(std::clamp(c.g, 0.0f, 1.0f) * 255.0f),
+        static_cast<BYTE>(std::clamp(c.b, 0.0f, 1.0f) * 255.0f));
+}
+
+bool projectToScreen(const glm::vec3& world, const glm::mat4& view, const glm::mat4& projection, int width, int height, POINT& out) {
+    glm::vec4 clip = projection * view * glm::vec4(world, 1.0f);
+    if (clip.w <= 0.0f) {
+        return false;
+    }
+    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    if (ndc.z < -1.0f || ndc.z > 1.0f) {
+        return false;
+    }
+    out.x = static_cast<int>((ndc.x * 0.5f + 0.5f) * static_cast<float>(width));
+    out.y = static_cast<int>((1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(height));
+    return true;
+}
+
+} // namespace
 
 OpenGLRenderer::OpenGLRenderer() = default;
 
@@ -68,6 +95,7 @@ void OpenGLRenderer::draw(const AViewport& viewport) {
     }
 
     SwapBuffers(hdc_);
+    drawOverlayText(viewport);
 }
 
 void OpenGLRenderer::setWorld(AWorld* world) {
@@ -136,4 +164,51 @@ void OpenGLRenderer::drawEntity(const AEntity& entity, const glm::mat4& view, co
         glVertex3f(v.x, v.y, v.z);
     }
     glEnd();
+}
+
+void OpenGLRenderer::drawOverlayText(const AViewport& viewport) {
+    if (!hdc_) {
+        return;
+    }
+
+    const auto& overlays = viewport.getOverlayTexts();
+    if (overlays.empty()) {
+        return;
+    }
+
+    SetBkMode(hdc_, TRANSPARENT);
+
+    for (const auto& overlay : overlays) {
+        POINT screen{};
+        if (overlay.screenSpace) {
+            screen.x = overlay.screenPosition.x;
+            screen.y = overlay.screenPosition.y;
+        } else if (!projectToScreen(overlay.worldPosition, viewport.getViewMatrix(), viewport.getProjectionMatrix(), width_, height_, screen)) {
+            continue;
+        }
+
+        HFONT font = CreateFontA(
+            -overlay.pixelHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+        HFONT oldFont = nullptr;
+        if (font) {
+            oldFont = (HFONT)SelectObject(hdc_, font);
+        }
+
+        SetTextColor(hdc_, toColorRef(overlay.color));
+
+        SIZE extent{};
+        GetTextExtentPoint32A(hdc_, overlay.text.c_str(), static_cast<int>(overlay.text.size()), &extent);
+        int x = screen.x;
+        if (overlay.alignRight) {
+            x -= extent.cx;
+        }
+        TextOutA(hdc_, x, screen.y, overlay.text.c_str(), static_cast<int>(overlay.text.size()));
+
+        if (font) {
+            SelectObject(hdc_, oldFont);
+            DeleteObject(font);
+        }
+    }
 }

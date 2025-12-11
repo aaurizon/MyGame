@@ -1,0 +1,38 @@
+// Debug overlay text definition for both world-space and screen-space labels.
+#pragma once
+
+#include <AEntity>
+#include <glm/glm.hpp>
+#include <string>
+
+struct ATextOverlay {
+    std::string text;
+    glm::vec3 worldPosition{0.0f, 0.0f, 0.0f};
+    glm::ivec2 screenPosition{0, 0};
+    bool screenSpace{false};
+    bool alignRight{false};
+    int pixelHeight{16};
+    AEntity::Color color{1.0f, 1.0f, 1.0f, 1.0f};
+
+    static ATextOverlay worldLabel(const std::string& value, const glm::vec3& position, int height = 16, const AEntity::Color& c = {1.0f, 1.0f, 1.0f, 1.0f}) {
+        ATextOverlay t;
+        t.text = value;
+        t.worldPosition = position;
+        t.screenSpace = false;
+        t.alignRight = false;
+        t.pixelHeight = height;
+        t.color = c;
+        return t;
+    }
+
+    static ATextOverlay screenLabel(const std::string& value, int x, int y, bool rightAligned = false, int height = 16, const AEntity::Color& c = {1.0f, 1.0f, 1.0f, 1.0f}) {
+        ATextOverlay t;
+        t.text = value;
+        t.screenPosition = {x, y};
+        t.screenSpace = true;
+        t.alignRight = rightAligned;
+        t.pixelHeight = height;
+        t.color = c;
+        return t;
+    }
+};

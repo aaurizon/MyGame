@@ -67,3 +67,11 @@ const glm::mat4& AViewport::getViewMatrix() const {
 const glm::mat4& AViewport::getProjectionMatrix() const {
     return projection_;
 }
+
+void AViewport::setOverlayTexts(const std::vector<ATextOverlay>& overlays) {
+    overlays_ = overlays;
+}
+
+const std::vector<ATextOverlay>& AViewport::getOverlayTexts() const {
+    return overlays_;
+}

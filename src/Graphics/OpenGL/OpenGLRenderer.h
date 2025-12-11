@@ -23,6 +23,7 @@ private:
     void setupContext(HWND hwnd);
     void setupState();
     void drawEntity(const AEntity& entity, const glm::mat4& view, const glm::mat4& projection);
+    void drawOverlayText(const AViewport& viewport);
 
     HWND hwnd_{nullptr};
     HDC hdc_{nullptr};

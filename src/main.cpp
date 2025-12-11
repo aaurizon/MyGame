@@ -1,5 +1,9 @@
 #include <glm/glm.hpp>
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <string>
+#include <vector>
 #include <AWindow>
 #include <ARenderWindow>
 #include <AViewport>
@@ -7,6 +11,7 @@
 #include <AEntity>
 #include <AFreeCamera>
 #include <AEvent>
+#include <ATextOverlay>
 #include <EEventKey>
 
 int main(int argc, char* argv[])
@@ -39,6 +44,16 @@ int main(int argc, char* argv[])
     AEntity* e1 = AEntity::createTriangle(glm::vec3(0,0,0), glm::vec3(5, 0, 0), glm::vec3(0, 0, 5));
     AEntity* e2 = AEntity::createRectangle(20, 10);
 
+    const auto& triVerts = e1->getVertices();
+    glm::vec3 triCentroid{0.0f};
+    for (const auto& v : triVerts) {
+        triCentroid += v;
+    }
+    if (!triVerts.empty()) {
+        triCentroid /= static_cast<float>(triVerts.size());
+    }
+    const glm::vec3 triLabelPos = triCentroid + glm::vec3(0.0f, 1.5f, 0.0f);
+
     // Color setup: triangle with primary vertex colors (RGB), rectangle with sand-like color.
     e1->setVertexColors({
         {1.0f, 0.0f, 0.0f, 1.0f}, // Red
@@ -58,6 +73,12 @@ int main(int argc, char* argv[])
     bool cursorCaptured = true;
     mainWindow.setCursorGrabbed(cursorCaptured);
     camera.setInputEnabled(cursorCaptured);
+
+    using Clock = std::chrono::steady_clock;
+    auto lastFrameTime = Clock::now();
+    float accumulatedTime = 0.0f;
+    int frames = 0;
+    float fps = 0.0f;
 
     int lastLayoutWidth = -1;
     int lastLayoutHeight = -1;
@@ -84,6 +105,17 @@ int main(int argc, char* argv[])
     // Process
     while (mainWindow.isOpen())
     {
+        const auto now = Clock::now();
+        const float deltaTime = std::chrono::duration<float>(now - lastFrameTime).count();
+        lastFrameTime = now;
+        accumulatedTime += deltaTime;
+        ++frames;
+        if (accumulatedTime >= 1.0f) {
+            fps = static_cast<float>(frames) / accumulatedTime;
+            frames = 0;
+            accumulatedTime = 0.0f;
+        }
+
         if (updateViewportLayout()) {
             camera.refreshMatrices();
         }
@@ -124,6 +156,21 @@ int main(int argc, char* argv[])
 
             camera.dispatchEvent(event);
         }
+
+        char fpsText[32];
+        std::snprintf(fpsText, sizeof(fpsText), "FPS: %.1f", fps);
+        auto applyOverlay = [&](AViewport& viewport) {
+            std::vector<ATextOverlay> overlays;
+            overlays.push_back(ATextOverlay::worldLabel("Hello world!", triLabelPos, 18));
+            const int margin = 12;
+            overlays.push_back(ATextOverlay::screenLabel(fpsText, viewport.getWidth() - margin, margin, true, 16, {0.9f, 0.9f, 0.9f, 1.0f}));
+            viewport.setOverlayTexts(overlays);
+        };
+
+        applyOverlay(viewportGL);
+        applyOverlay(viewportVK);
+        applyOverlay(viewportDX11);
+        applyOverlay(viewportDX12);
 
         glRender.display();
         vkRender.display();

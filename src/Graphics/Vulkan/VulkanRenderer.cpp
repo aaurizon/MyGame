@@ -10,6 +10,75 @@
 #include <cstring>
 #include <limits>
 #include <stdexcept>
+#include <string>
+
+namespace {
+
+COLORREF toColorRef(const AEntity::Color& c) {
+    return RGB(
+        static_cast<BYTE>(std::clamp(c.r, 0.0f, 1.0f) * 255.0f),
+        static_cast<BYTE>(std::clamp(c.g, 0.0f, 1.0f) * 255.0f),
+        static_cast<BYTE>(std::clamp(c.b, 0.0f, 1.0f) * 255.0f));
+}
+
+bool projectToScreen(const glm::vec3& world, const glm::mat4& view, const glm::mat4& projection, int width, int height, POINT& out) {
+    glm::vec4 clip = projection * view * glm::vec4(world, 1.0f);
+    if (clip.w <= 0.0f) {
+        return false;
+    }
+    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    if (ndc.z < -1.0f || ndc.z > 1.0f) {
+        return false;
+    }
+    out.x = static_cast<int>((ndc.x * 0.5f + 0.5f) * static_cast<float>(width));
+    out.y = static_cast<int>((1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(height));
+    return true;
+}
+
+void drawOverlayText(HDC dc, const AViewport& viewport) {
+    const auto& overlays = viewport.getOverlayTexts();
+    if (overlays.empty() || !dc) {
+        return;
+    }
+
+    SetBkMode(dc, TRANSPARENT);
+
+    for (const auto& overlay : overlays) {
+        POINT screen{};
+        if (overlay.screenSpace) {
+            screen.x = overlay.screenPosition.x;
+            screen.y = overlay.screenPosition.y;
+        } else if (!projectToScreen(overlay.worldPosition, viewport.getViewMatrix(), viewport.getProjectionMatrix(), viewport.getWidth(), viewport.getHeight(), screen)) {
+            continue;
+        }
+
+        HFONT font = CreateFontA(
+            -overlay.pixelHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+        HFONT oldFont = nullptr;
+        if (font) {
+            oldFont = (HFONT)SelectObject(dc, font);
+        }
+
+        SetTextColor(dc, toColorRef(overlay.color));
+
+        SIZE extent{};
+        GetTextExtentPoint32A(dc, overlay.text.c_str(), static_cast<int>(overlay.text.size()), &extent);
+        int x = screen.x;
+        if (overlay.alignRight) {
+            x -= extent.cx;
+        }
+        TextOutA(dc, x, screen.y, overlay.text.c_str(), static_cast<int>(overlay.text.size()));
+
+        if (font) {
+            SelectObject(dc, oldFont);
+            DeleteObject(font);
+        }
+    }
+}
+
+} // namespace
 
 VulkanRenderer::VulkanRenderer() = default;
 
@@ -239,6 +308,8 @@ void VulkanRenderer::draw(const AViewport& viewport) {
             }
         }
     }
+
+    drawOverlayText(backBufferDC_, viewport);
 
     // Blit the finished back buffer to the window DC in one go to avoid flicker.
     BitBlt(hdc, 0, 0, backBufferWidth_, backBufferHeight_, backBufferDC_, 0, 0, SRCCOPY);
