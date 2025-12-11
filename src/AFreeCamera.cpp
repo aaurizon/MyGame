@@ -2,6 +2,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
+#include <iostream>
 
 AFreeCamera::AFreeCamera(AViewport& viewport, const glm::vec3& position, const glm::vec3& lookAt)
     : viewport_(viewport), position_(position) {
@@ -43,6 +44,14 @@ void AFreeCamera::updateMatrices() {
 
     viewport_.setViewMatrix(view);
     viewport_.setProjectionMatrix(projection);
+
+    // Simple runtime feedback to verify camera controls.
+    const float yawDeg = glm::degrees(yaw_);
+    const float pitchDeg = glm::degrees(pitch_);
+    std::cout << "[Camera] pos(" << position_.x << ", " << position_.y << ", " << position_.z
+              << ") forward(" << forward_.x << ", " << forward_.y << ", " << forward_.z
+              << ") yaw " << yawDeg << " deg"
+              << " pitch " << pitchDeg << " deg" << std::endl;
 }
 
 void AFreeCamera::handleKeyPressed(EEventKey::Scancode code) {
