@@ -21,6 +21,11 @@ public:
     void draw(const AViewport& viewport) override;
     void setWorld(class AWorld* world) override;
 
+    struct FontEntry {
+        int size{0};
+        HFONT font{nullptr};
+    };
+
 private:
     AWorld* world_{nullptr};
     HWND hwnd_{nullptr};
@@ -37,6 +42,7 @@ private:
     int backBufferWidth_{0};
     int backBufferHeight_{0};
     std::vector<float> depthBuffer_;
+    std::vector<FontEntry> fontCache_;
 
     void ensureBackBuffer(int width, int height);
     void releaseBackBuffer();

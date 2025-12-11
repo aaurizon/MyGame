@@ -97,7 +97,23 @@ std::vector<ResolvedText> collectTexts(const AViewport& viewport) {
     return out;
 }
 
-void drawOverlayText(HDC dc, const AViewport& viewport) {
+HFONT getOrCreateFont(int size, std::vector<DirectX12Renderer::FontEntry>& cache) {
+    for (auto& entry : cache) {
+        if (entry.size == size && entry.font) {
+            return entry.font;
+        }
+    }
+    HFONT font = CreateFontA(
+        -size, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+        DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    if (font) {
+        cache.push_back(DirectX12Renderer::FontEntry{size, font});
+    }
+    return font;
+}
+
+void drawOverlayText(HDC dc, const AViewport& viewport, std::vector<DirectX12Renderer::FontEntry>& fontCache) {
     if (!dc) {
         return;
     }
@@ -109,10 +125,7 @@ void drawOverlayText(HDC dc, const AViewport& viewport) {
     SetBkMode(dc, TRANSPARENT);
 
     for (const auto& overlay : resolved) {
-        HFONT font = CreateFontA(
-            -overlay.pixelHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+        HFONT font = getOrCreateFont(overlay.pixelHeight, fontCache);
         HFONT oldFont = nullptr;
         if (font) {
             oldFont = (HFONT)SelectObject(dc, font);
@@ -125,9 +138,8 @@ void drawOverlayText(HDC dc, const AViewport& viewport) {
         int x = overlay.alignRight ? (viewport.getWidth() - overlay.x - extent.cx) : overlay.x;
         TextOutA(dc, x, overlay.y, overlay.text.c_str(), static_cast<int>(overlay.text.size()));
 
-        if (font) {
+        if (font && oldFont) {
             SelectObject(dc, oldFont);
-            DeleteObject(font);
         }
     }
 }
@@ -150,6 +162,13 @@ bool DirectX12Renderer::initialize(void* nativeWindow, int width, int height) {
 
 void DirectX12Renderer::shutdown() {
     releaseBackBuffer();
+    for (auto& entry : fontCache_) {
+        if (entry.font) {
+            DeleteObject(entry.font);
+            entry.font = nullptr;
+        }
+    }
+    fontCache_.clear();
     hwnd_ = nullptr;
 }
 
@@ -418,9 +437,10 @@ void DirectX12Renderer::draw(const AViewport& viewport) {
         }
     }
 
-    drawOverlayText(backBufferDC_, viewport);
+    drawOverlayText(backBufferDC_, viewport, fontCache_);
 
     BitBlt(hdc, 0, 0, backBufferWidth_, backBufferHeight_, backBufferDC_, 0, 0, SRCCOPY);
+    drawOverlayText(hdc, viewport, fontCache_);
     ReleaseDC(hwnd_, hdc);
 }
 

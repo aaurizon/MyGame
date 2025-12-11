@@ -152,6 +152,7 @@ int main(int argc, char* argv[])
                 {
                     auto nextBackend = [](EGraphicsBackend b) {
                         switch (b) {
+                        case EGraphicsBackend::None: return EGraphicsBackend::OpenGL;
                         case EGraphicsBackend::OpenGL: return EGraphicsBackend::Vulkan;
                         case EGraphicsBackend::Vulkan: return EGraphicsBackend::DirectX11;
                         case EGraphicsBackend::DirectX11: return EGraphicsBackend::DirectX12;
