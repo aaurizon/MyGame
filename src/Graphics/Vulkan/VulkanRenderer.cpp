@@ -157,10 +157,10 @@ void VulkanRenderer::draw(const AViewport& viewport) {
 
                         AEntity::Color c = uniformColor;
                         if (interpolateColor) {
-                            c.r = v0.color.r * w1 + v1.color.r * w2 + v2.color.r * w0;
-                            c.g = v0.color.g * w1 + v1.color.g * w2 + v2.color.g * w0;
-                            c.b = v0.color.b * w1 + v1.color.b * w2 + v2.color.b * w0;
-                            c.a = v0.color.a * w1 + v1.color.a * w2 + v2.color.a * w0;
+                            c.r = v0.color.r * w0 + v1.color.r * w1 + v2.color.r * w2;
+                            c.g = v0.color.g * w0 + v1.color.g * w1 + v2.color.g * w2;
+                            c.b = v0.color.b * w0 + v1.color.b * w1 + v2.color.b * w2;
+                            c.a = v0.color.a * w0 + v1.color.a * w1 + v2.color.a * w2;
                         }
 
                         uint8_t* pxPtr = colorBits_ + static_cast<size_t>(y) * static_cast<size_t>(colorStride_) + static_cast<size_t>(x) * 4;
