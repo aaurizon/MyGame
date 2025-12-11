@@ -26,3 +26,7 @@
 ## Commit & Pull Request Guidelines
 - Commits follow short, capitalized summaries (e.g., `Revise and expand project documentation`); keep them under ~72 characters and scoped to one logical change.
 - For PRs, include: goal/what changed, build/run commands executed, notable platform/SDK requirements, and screenshots or logs if you touch rendering. Link related issues when applicable.
+
+## Ownership
+- `AFloatingText` is owned by `AWorld` (world takes ownership of pointers you add; don’t share across worlds).
+- `ARenderOverlay` owns its texts internally; attach/detach overlays to viewports as needed (a viewport keeps pointers only; caller manages overlay lifetime).
