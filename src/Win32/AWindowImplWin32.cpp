@@ -14,6 +14,7 @@ EEventKey::Scancode mapVirtualKey(WPARAM wParam) {
     case 'A': return EEventKey::Scancode::A;
     case 'S': return EEventKey::Scancode::S;
     case 'D': return EEventKey::Scancode::D;
+    case 'P': return EEventKey::Scancode::P;
     case VK_UP: return EEventKey::Scancode::Up;
     case VK_DOWN: return EEventKey::Scancode::Down;
     case VK_LEFT: return EEventKey::Scancode::Left;
@@ -135,6 +136,36 @@ void AWindowImplWin32::setTitle(const std::string& title) {
     }
 }
 
+void AWindowImplWin32::setCursorGrabbed(bool grabbed) {
+    if (!hwnd_) {
+        return;
+    }
+    if (grabbed == cursorGrabbed_) {
+        return;
+    }
+
+    cursorGrabbed_ = grabbed;
+    if (cursorGrabbed_) {
+        ShowCursor(FALSE);
+        RECT rect{};
+        GetClientRect(hwnd_, &rect);
+        POINT ul{rect.left, rect.top};
+        POINT lr{rect.right, rect.bottom};
+        MapWindowPoints(hwnd_, nullptr, &ul, 1);
+        MapWindowPoints(hwnd_, nullptr, &lr, 1);
+        RECT clipRect{ul.x, ul.y, lr.x, lr.y};
+        ClipCursor(&clipRect);
+        centerCursor();
+    } else {
+        ClipCursor(nullptr);
+        ShowCursor(TRUE);
+    }
+}
+
+bool AWindowImplWin32::isCursorGrabbed() const {
+    return cursorGrabbed_;
+}
+
 LRESULT CALLBACK AWindowImplWin32::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     AWindowImplWin32* self = reinterpret_cast<AWindowImplWin32*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
 
@@ -182,6 +213,9 @@ LRESULT CALLBACK AWindowImplWin32::WndProc(HWND hwnd, UINT msg, WPARAM wParam, L
         glm::vec2 delta{x - self->lastMouse_.x, y - self->lastMouse_.y};
         self->lastMouse_ = {x, y};
         self->pushEvent(std::make_shared<AEvent::MouseMoved>(delta.x, delta.y, x, y));
+        if (self->cursorGrabbed_) {
+            self->centerCursor();
+        }
         break;
     }
     case WM_ERASEBKGND:
@@ -192,6 +226,9 @@ LRESULT CALLBACK AWindowImplWin32::WndProc(HWND hwnd, UINT msg, WPARAM wParam, L
     case WM_MBUTTONDOWN: {
         auto scancode = mapMouseButton(msg);
         self->pushEvent(std::make_shared<AEvent::MouseButtonPressed>(scancode));
+        if (self->cursorGrabbed_) {
+            self->centerCursor();
+        }
         break;
     }
     case WM_LBUTTONUP:
@@ -215,4 +252,20 @@ void AWindowImplWin32::pushEvent(const std::shared_ptr<AEvent>& event) {
 void AWindowImplWin32::handleSizeChange(LPARAM lParam) {
     width_ = LOWORD(lParam);
     height_ = HIWORD(lParam);
+}
+
+void AWindowImplWin32::centerCursor() {
+    if (!hwnd_ || !cursorGrabbed_) {
+        return;
+    }
+    RECT rect{};
+    GetClientRect(hwnd_, &rect);
+    POINT clientCenter{
+        rect.left + (rect.right - rect.left) / 2,
+        rect.top + (rect.bottom - rect.top) / 2
+    };
+    POINT screenCenter = clientCenter;
+    ClientToScreen(hwnd_, &screenCenter);
+    SetCursorPos(screenCenter.x, screenCenter.y);
+    lastMouse_ = {static_cast<float>(clientCenter.x), static_cast<float>(clientCenter.y)};
 }

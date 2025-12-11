@@ -17,6 +17,10 @@ void AFreeCamera::dispatchEvent(const std::shared_ptr<AEvent>& event) {
         return;
     }
 
+    if (!inputEnabled_) {
+        return;
+    }
+
     if (event->is<AEvent::KeyPressed>()) {
         handleKeyPressed(event->getIf<AEvent::KeyPressed>()->scancode);
     } else if (const auto* moveEvent = event->getIf<AEvent::MouseMoved>()) {

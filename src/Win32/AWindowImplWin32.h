@@ -25,14 +25,18 @@ public:
     int getWidth() const override;
     int getHeight() const override;
     void setTitle(const std::string& title) override;
+    void setCursorGrabbed(bool grabbed) override;
+    bool isCursorGrabbed() const override;
 
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     void pushEvent(const std::shared_ptr<AEvent>& event);
     void handleSizeChange(LPARAM lParam);
+    void centerCursor();
 
     HWND hwnd_{nullptr};
     bool open_{false};
+    bool cursorGrabbed_{false};
     int width_{0};
     int height_{0};
     glm::vec2 lastMouse_{0.0f, 0.0f};

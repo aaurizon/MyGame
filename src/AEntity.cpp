@@ -29,6 +29,10 @@ const AEntity::Color& AEntity::getColor() const {
     return color_;
 }
 
+const std::vector<AEntity::Color>& AEntity::getVertexColors() const {
+    return vertexColors_;
+}
+
 void AEntity::setPosition(const glm::vec3& pos) {
     position_ = pos;
 }
@@ -39,4 +43,8 @@ const glm::vec3& AEntity::getPosition() const {
 
 void AEntity::setColor(const Color& color) {
     color_ = color;
+}
+
+void AEntity::setVertexColors(const std::vector<Color>& colors) {
+    vertexColors_ = colors;
 }

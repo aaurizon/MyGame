@@ -58,6 +58,19 @@ public:
 
     AViewport& getViewport() { return viewport; }
 
+    void setCursorGrabbed(bool grabbed) {
+        if (window_) {
+            window_->setCursorGrabbed(grabbed);
+        }
+    }
+
+    bool isCursorGrabbed() const {
+        if (window_) {
+            return window_->isCursorGrabbed();
+        }
+        return false;
+    }
+
 private:
     void recreateRenderer(EGraphicsBackend backend) {
         switch (backend) {
@@ -101,3 +114,7 @@ void ARenderWindow::setGraphicsBackend(EGraphicsBackend backend) { impl_->setGra
 EGraphicsBackend ARenderWindow::getGraphicsBackend() const { return impl_->getGraphicsBackend(); }
 
 AViewport& ARenderWindow::getViewport() { return impl_->getViewport(); }
+
+void ARenderWindow::setCursorGrabbed(bool grabbed) { impl_->setCursorGrabbed(grabbed); }
+
+bool ARenderWindow::isCursorGrabbed() const { return impl_->isCursorGrabbed(); }

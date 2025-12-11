@@ -103,6 +103,8 @@ void OpenGLRenderer::drawEntity(const AEntity& entity, const glm::mat4& view, co
     if (vertices.empty()) {
         return;
     }
+    const auto& vertexColors = entity.getVertexColors();
+    const bool hasPerVertexColors = vertexColors.size() == vertices.size();
 
     const glm::mat4 model = glm::translate(glm::mat4(1.0f), entity.getPosition());
 
@@ -114,11 +116,17 @@ void OpenGLRenderer::drawEntity(const AEntity& entity, const glm::mat4& view, co
     glLoadMatrixf(glm::value_ptr(viewModel));
 
     const auto color = entity.getColor();
-    glColor4f(color.r, color.g, color.b, color.a);
 
     GLenum primitive = vertices.size() == 3 ? GL_TRIANGLES : GL_TRIANGLE_FAN;
     glBegin(primitive);
-    for (const auto& v : vertices) {
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        if (hasPerVertexColors) {
+            const auto& c = vertexColors[i];
+            glColor4f(c.r, c.g, c.b, c.a);
+        } else {
+            glColor4f(color.r, color.g, color.b, color.a);
+        }
+        const auto& v = vertices[i];
         glVertex3f(v.x, v.y, v.z);
     }
     glEnd();

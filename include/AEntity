@@ -18,16 +18,19 @@ public:
 
     const std::vector<glm::vec3>& getVertices() const;
     const Color& getColor() const;
+    const std::vector<Color>& getVertexColors() const;
 
     void setPosition(const glm::vec3& pos);
     const glm::vec3& getPosition() const;
 
     void setColor(const Color& color);
+    void setVertexColors(const std::vector<Color>& colors);
 
 private:
     explicit AEntity(const std::vector<glm::vec3>& vertices);
 
     std::vector<glm::vec3> vertices_;
+    std::vector<Color> vertexColors_;
     glm::vec3 position_{0.0f, 0.0f, 0.0f};
     Color color_{1.0f, 1.0f, 1.0f, 1.0f};
 };

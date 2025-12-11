@@ -125,7 +125,22 @@ void VulkanRenderer::draw(const AViewport& viewport) {
             continue;
         }
 
-        const auto color = entityPtr->getColor();
+        // Fallback renderer fills a single color; if per-vertex colors are present, use an average.
+        AEntity::Color color = entityPtr->getColor();
+        const auto& vertexColors = entityPtr->getVertexColors();
+        if (vertexColors.size() == vertices.size() && !vertexColors.empty()) {
+            float r = 0.0f, g = 0.0f, b = 0.0f;
+            for (const auto& c : vertexColors) {
+                r += c.r;
+                g += c.g;
+                b += c.b;
+            }
+            const float inv = 1.0f / static_cast<float>(vertexColors.size());
+            color.r = r * inv;
+            color.g = g * inv;
+            color.b = b * inv;
+        }
+
         const COLORREF rgb = RGB(
             static_cast<int>(color.r * 255.0f),
             static_cast<int>(color.g * 255.0f),

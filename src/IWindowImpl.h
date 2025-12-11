@@ -19,4 +19,7 @@ public:
     virtual int getWidth() const = 0;
     virtual int getHeight() const = 0;
     virtual void setTitle(const std::string& title) = 0;
+
+    virtual void setCursorGrabbed(bool grabbed) = 0;
+    virtual bool isCursorGrabbed() const = 0;
 };

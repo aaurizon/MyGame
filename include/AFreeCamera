@@ -16,6 +16,7 @@ public:
     const glm::vec3& getForward() const;
     float getYawRadians() const { return yaw_; }
     float getPitchRadians() const { return pitch_; }
+    void setInputEnabled(bool enabled) { inputEnabled_ = enabled; }
 
 private:
     void updateMatrices();
@@ -30,4 +31,5 @@ private:
     float pitch_{0.0f};
     float moveStep_{1.0f};
     float mouseSensitivity_{0.15f};
+    bool inputEnabled_{true};
 };

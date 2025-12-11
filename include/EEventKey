@@ -15,6 +15,7 @@ public:
         Left,
         Right,
         Space,
+        P,
         Shift,
         Control,
         MouseLeft,

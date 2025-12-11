@@ -25,6 +25,9 @@ public:
 
     AViewport& getViewport();
 
+    void setCursorGrabbed(bool grabbed);
+    bool isCursorGrabbed() const;
+
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;
