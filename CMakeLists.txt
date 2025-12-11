@@ -15,6 +15,7 @@ set(ENGINE_SOURCES
     src/AEntity.cpp
     src/AFreeCamera.cpp
     src/ARenderOverlay.cpp
+    src/AFpsCounter.cpp
     src/Win32/AWindowImplWin32.cpp
     src/Graphics/OpenGL/OpenGLRenderer.cpp
     src/Graphics/Vulkan/VulkanRenderer.cpp

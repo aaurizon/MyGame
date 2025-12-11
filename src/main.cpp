@@ -1,6 +1,5 @@
 #include <glm/glm.hpp>
 #include <algorithm>
-#include <chrono>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -13,6 +12,7 @@
 #include <AText>
 #include <AFloatingText>
 #include <ARenderOverlay>
+#include <AFpsCounter>
 #include <EEventKey>
 
 int main(int argc, char* argv[])
@@ -86,11 +86,7 @@ int main(int argc, char* argv[])
     viewportDX11.addOverlay(hudOverlay);
     viewportDX12.addOverlay(hudOverlay);
 
-    using Clock = std::chrono::steady_clock;
-    auto lastFrameTime = Clock::now();
-    float accumulatedTime = 0.0f;
-    int frames = 0;
-    float fps = 0.0f;
+    AFpsCounter fpsCounter;
 
     int lastLayoutWidth = -1;
     int lastLayoutHeight = -1;
@@ -117,16 +113,7 @@ int main(int argc, char* argv[])
     // Process
     while (mainWindow.isOpen())
     {
-        const auto now = Clock::now();
-        const float deltaTime = std::chrono::duration<float>(now - lastFrameTime).count();
-        lastFrameTime = now;
-        accumulatedTime += deltaTime;
-        ++frames;
-        if (accumulatedTime >= 1.0f) {
-            fps = static_cast<float>(frames) / accumulatedTime;
-            frames = 0;
-            accumulatedTime = 0.0f;
-        }
+        const float deltaTime = fpsCounter.tick();
 
         if (updateViewportLayout()) {
             camera.refreshMatrices();
@@ -171,7 +158,7 @@ int main(int argc, char* argv[])
         }
 
         char fpsBuffer[32];
-        std::snprintf(fpsBuffer, sizeof(fpsBuffer), "FPS: %.1f", fps);
+        std::snprintf(fpsBuffer, sizeof(fpsBuffer), "FPS: %.1f", fpsCounter.getFps());
         fpsText.setText(fpsBuffer);
 
         glRender.display();

@@ -1,0 +1,23 @@
+// Simple FPS counter helper to track frame time and rolling FPS.
+#pragma once
+
+#include <chrono>
+
+class AFpsCounter {
+public:
+    using Clock = std::chrono::steady_clock;
+
+    AFpsCounter();
+
+    // Returns delta time in seconds since the previous tick and updates FPS.
+    float tick();
+
+    float getFps() const;
+    void reset();
+
+private:
+    Clock::time_point lastTime_;
+    float accumulated_{0.0f};
+    int frames_{0};
+    float fps_{0.0f};
+};
