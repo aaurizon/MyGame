@@ -184,6 +184,9 @@ LRESULT CALLBACK AWindowImplWin32::WndProc(HWND hwnd, UINT msg, WPARAM wParam, L
         self->pushEvent(std::make_shared<AEvent::MouseMoved>(delta.x, delta.y, x, y));
         break;
     }
+    case WM_ERASEBKGND:
+        // Prevent the default background erase to avoid flicker; the renderer handles clearing.
+        return 1;
     case WM_LBUTTONDOWN:
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN: {

@@ -21,8 +21,19 @@ public:
     void setWorld(class AWorld* world) override;
 
 private:
+    AWorld* world_{nullptr};
     HWND hwnd_{nullptr};
     int width_{0};
     int height_{0};
     VkInstance instance_{VK_NULL_HANDLE};
+
+    // Simple double-buffered GDI fallback to avoid flicker while Vulkan is stubbed.
+    HDC backBufferDC_{nullptr};
+    HBITMAP backBufferBitmap_{nullptr};
+    HBITMAP backBufferOldBitmap_{nullptr};
+    int backBufferWidth_{0};
+    int backBufferHeight_{0};
+
+    void ensureBackBuffer(int width, int height);
+    void releaseBackBuffer();
 };
