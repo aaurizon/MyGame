@@ -81,6 +81,12 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         resize(viewport.getWidth(), viewport.getHeight());
     }
 
+    // Bail early on minimized (zero-size) windows to avoid allocations and math issues.
+    if (viewport.getWidth() <= 0 || viewport.getHeight() <= 0) {
+        ReleaseDC(hwnd_, hdc);
+        return;
+    }
+
     if (!backBufferDC_ || !backBufferBitmap_) {
         ReleaseDC(hwnd_, hdc);
         return;
@@ -240,6 +246,11 @@ void VulkanRenderer::draw(const AViewport& viewport) {
 
 void VulkanRenderer::ensureBackBuffer(int width, int height) {
     if (!hwnd_) {
+        return;
+    }
+
+    if (width <= 0 || height <= 0) {
+        releaseBackBuffer();
         return;
     }
 

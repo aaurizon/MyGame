@@ -50,6 +50,11 @@ void DirectX11Renderer::draw(const AViewport& viewport) {
         resize(viewport.getWidth(), viewport.getHeight());
     }
 
+    if (viewport.getWidth() <= 0 || viewport.getHeight() <= 0) {
+        ReleaseDC(hwnd_, hdc);
+        return;
+    }
+
     if (!backBufferDC_ || !backBufferBitmap_ || !colorBits_ || depthBuffer_.empty()) {
         ReleaseDC(hwnd_, hdc);
         return;
@@ -294,6 +299,10 @@ void DirectX11Renderer::draw(const AViewport& viewport) {
 
 void DirectX11Renderer::ensureBackBuffer(int width, int height) {
     if (!hwnd_) {
+        return;
+    }
+    if (width <= 0 || height <= 0) {
+        releaseBackBuffer();
         return;
     }
     if (backBufferBitmap_ && width == backBufferWidth_ && height == backBufferHeight_) {
