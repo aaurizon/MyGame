@@ -3,6 +3,7 @@
 #include <AEvent>
 #include <EEventKey>
 #include <cassert>
+#include <windowsx.h>
 
 namespace {
 

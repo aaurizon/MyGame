@@ -15,57 +15,66 @@ public:
         MouseButtonReleased
     };
 
+    struct Closed;
+    struct KeyPressed;
+    struct KeyReleased;
+    struct MouseMoved;
+    struct MouseButtonPressed;
+    struct MouseButtonReleased;
+
     virtual ~AEvent() = default;
     virtual Type getType() const = 0;
 
     template <typename T>
     bool is() const {
-        return getType() == T::StaticType;
+        return dynamic_cast<const T*>(this) != nullptr;
     }
 
     template <typename T>
     const T* getIf() const {
-        return is<T>() ? static_cast<const T*>(this) : nullptr;
+        return dynamic_cast<const T*>(this);
     }
+};
 
-    struct Closed : public AEvent {
-        static constexpr Type StaticType = Type::Closed;
-        Type getType() const override { return StaticType; }
-    };
+// Derived event types are defined out of line to ensure AEvent is complete
+// before being used as a base class.
+struct AEvent::Closed : public AEvent {
+    static constexpr Type StaticType = Type::Closed;
+    Type getType() const override { return StaticType; }
+};
 
-    struct KeyPressed : public AEvent {
-        static constexpr Type StaticType = Type::KeyPressed;
-        explicit KeyPressed(EEventKey::Scancode code) : scancode(code) {}
-        Type getType() const override { return StaticType; }
-        EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
-    };
+struct AEvent::KeyPressed : public AEvent {
+    static constexpr Type StaticType = Type::KeyPressed;
+    explicit KeyPressed(EEventKey::Scancode code) : scancode(code) {}
+    Type getType() const override { return StaticType; }
+    EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
+};
 
-    struct KeyReleased : public AEvent {
-        static constexpr Type StaticType = Type::KeyReleased;
-        explicit KeyReleased(EEventKey::Scancode code) : scancode(code) {}
-        Type getType() const override { return StaticType; }
-        EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
-    };
+struct AEvent::KeyReleased : public AEvent {
+    static constexpr Type StaticType = Type::KeyReleased;
+    explicit KeyReleased(EEventKey::Scancode code) : scancode(code) {}
+    Type getType() const override { return StaticType; }
+    EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
+};
 
-    struct MouseMoved : public AEvent {
-        static constexpr Type StaticType = Type::MouseMoved;
-        MouseMoved(float dx, float dy, float x, float y) : delta(dx, dy), position(x, y) {}
-        Type getType() const override { return StaticType; }
-        glm::vec2 delta;
-        glm::vec2 position;
-    };
+struct AEvent::MouseMoved : public AEvent {
+    static constexpr Type StaticType = Type::MouseMoved;
+    MouseMoved(float dx, float dy, float x, float y) : delta(dx, dy), position(x, y) {}
+    Type getType() const override { return StaticType; }
+    glm::vec2 delta;
+    glm::vec2 position;
+};
 
-    struct MouseButtonPressed : public AEvent {
-        static constexpr Type StaticType = Type::MouseButtonPressed;
-        explicit MouseButtonPressed(EEventKey::Scancode buttonCode) : scancode(buttonCode) {}
-        Type getType() const override { return StaticType; }
-        EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
-    };
+struct AEvent::MouseButtonPressed : public AEvent {
+    static constexpr Type StaticType = Type::MouseButtonPressed;
+    explicit MouseButtonPressed(EEventKey::Scancode buttonCode) : scancode(buttonCode) {}
+    Type getType() const override { return StaticType; }
+    EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
+};
 
-    struct MouseButtonReleased : public AEvent {
-        static constexpr Type StaticType = Type::MouseButtonReleased;
-        explicit MouseButtonReleased(EEventKey::Scancode buttonCode) : scancode(buttonCode) {}
-        Type getType() const override { return StaticType; }
-        EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
-    };
+struct AEvent::MouseButtonReleased : public AEvent {
+    static constexpr Type StaticType = Type::MouseButtonReleased;
+    explicit MouseButtonReleased(EEventKey::Scancode buttonCode) : scancode(buttonCode) {}
+    Type getType() const override { return StaticType; }
+    EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
 };

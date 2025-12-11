@@ -25,7 +25,9 @@ target_include_directories(MyGameEngine PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${VULKAN_SDK_ROOT}/Include"
 )
-target_link_directories(MyGameEngine PRIVATE "${VULKAN_SDK_ROOT}/Lib")
+# Vulkan import library path needs to be visible to dependents so that linking
+# the executable resolves -lvulkan-1 when using MinGW.
+target_link_directories(MyGameEngine PUBLIC "${VULKAN_SDK_ROOT}/Lib")
 target_link_libraries(MyGameEngine PUBLIC vulkan-1 opengl32 user32 gdi32)
 target_compile_definitions(MyGameEngine PRIVATE
     VK_USE_PLATFORM_WIN32_KHR
