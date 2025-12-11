@@ -266,10 +266,14 @@ void OpenGLRenderer::drawOverlayText(const AViewport& viewport) {
             continue;
         }
         for (const auto& text : overlay->getTexts()) {
-            appendScreenText(text);
+            if (text) {
+                appendScreenText(*text);
+            }
         }
         for (const auto& floating : overlay->getFloatingTexts()) {
-            appendFloatingText(floating);
+            if (floating) {
+                appendFloatingText(*floating);
+            }
         }
     }
 

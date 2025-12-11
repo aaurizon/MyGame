@@ -3,6 +3,7 @@
 
 #include <AText>
 #include <AFloatingText>
+#include <memory>
 #include <vector>
 
 class ARenderOverlay {
@@ -13,13 +14,13 @@ public:
     AText& addText(const AText& text);
     AFloatingText& addFloatingText(const AFloatingText& text);
 
-    std::vector<AText>& getTexts();
-    const std::vector<AText>& getTexts() const;
+    std::vector<std::unique_ptr<AText>>& getTexts();
+    const std::vector<std::unique_ptr<AText>>& getTexts() const;
 
-    std::vector<AFloatingText>& getFloatingTexts();
-    const std::vector<AFloatingText>& getFloatingTexts() const;
+    std::vector<std::unique_ptr<AFloatingText>>& getFloatingTexts();
+    const std::vector<std::unique_ptr<AFloatingText>>& getFloatingTexts() const;
 
 private:
-    std::vector<AText> texts_;
-    std::vector<AFloatingText> floatingTexts_;
+    std::vector<std::unique_ptr<AText>> texts_;
+    std::vector<std::unique_ptr<AFloatingText>> floatingTexts_;
 };

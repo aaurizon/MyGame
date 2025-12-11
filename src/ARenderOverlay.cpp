@@ -1,27 +1,27 @@
 #include <ARenderOverlay>
 
 AText& ARenderOverlay::addText(const AText& text) {
-    texts_.push_back(text);
-    return texts_.back();
+    texts_.push_back(std::make_unique<AText>(text));
+    return *texts_.back();
 }
 
 AFloatingText& ARenderOverlay::addFloatingText(const AFloatingText& text) {
-    floatingTexts_.push_back(text);
-    return floatingTexts_.back();
+    floatingTexts_.push_back(std::make_unique<AFloatingText>(text));
+    return *floatingTexts_.back();
 }
 
-std::vector<AText>& ARenderOverlay::getTexts() {
+std::vector<std::unique_ptr<AText>>& ARenderOverlay::getTexts() {
     return texts_;
 }
 
-const std::vector<AText>& ARenderOverlay::getTexts() const {
+const std::vector<std::unique_ptr<AText>>& ARenderOverlay::getTexts() const {
     return texts_;
 }
 
-std::vector<AFloatingText>& ARenderOverlay::getFloatingTexts() {
+std::vector<std::unique_ptr<AFloatingText>>& ARenderOverlay::getFloatingTexts() {
     return floatingTexts_;
 }
 
-const std::vector<AFloatingText>& ARenderOverlay::getFloatingTexts() const {
+const std::vector<std::unique_ptr<AFloatingText>>& ARenderOverlay::getFloatingTexts() const {
     return floatingTexts_;
 }
