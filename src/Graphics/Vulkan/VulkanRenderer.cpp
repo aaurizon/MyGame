@@ -5,6 +5,7 @@
 #include <AViewport>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
 
 VulkanRenderer::VulkanRenderer() = default;
@@ -126,7 +127,6 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         prim.uniformColor = entityPtr->getColor();
 
         float minDepth01 = 1.0f;
-        float maxDepth01 = 0.0f;
         float depthAccum = 0.0f;
         int depthCount = 0;
 
@@ -148,10 +148,8 @@ void VulkanRenderer::draw(const AViewport& viewport) {
             p.y = static_cast<LONG>((1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(viewport.getHeight()));
             prim.points.push_back(p);
 
-            // Depth in [0,1]: map OpenGL NDC (-1,1) to depth.
             const float depth01 = ndc.z * 0.5f + 0.5f;
             minDepth01 = std::min(minDepth01, depth01);
-            maxDepth01 = std::max(maxDepth01, depth01);
             depthAccum += depth01;
             depthCount++;
         }
@@ -164,14 +162,14 @@ void VulkanRenderer::draw(const AViewport& viewport) {
             continue;
         }
 
-        // Use average depth for ordering to reduce popping on large primitives.
-        prim.depth = depthAccum / static_cast<float>(depthCount);
+        // Use min depth for ordering to avoid near primitives being hidden.
+        prim.depth = minDepth01;
         primitives.push_back(std::move(prim));
     }
 
-    // Painter's algorithm: draw far-to-near to mimic depth.
+    // Painter's algorithm: draw far-to-near.
     std::sort(primitives.begin(), primitives.end(), [](const Primitive& a, const Primitive& b) {
-        return a.depth > b.depth; // far (larger depth) first, using closest-point depth
+        return a.depth > b.depth;
     });
 
     for (const auto& prim : primitives) {
