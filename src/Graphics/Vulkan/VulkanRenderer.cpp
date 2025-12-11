@@ -4,6 +4,7 @@
 #include <AWorld>
 #include <AViewport>
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 #include <stdexcept>
 
 VulkanRenderer::VulkanRenderer() = default;
@@ -125,38 +126,58 @@ void VulkanRenderer::draw(const AViewport& viewport) {
             continue;
         }
 
-        // Fallback renderer fills a single color; if per-vertex colors are present, use an average.
-        AEntity::Color color = entityPtr->getColor();
         const auto& vertexColors = entityPtr->getVertexColors();
-        if (vertexColors.size() == vertices.size() && !vertexColors.empty()) {
-            float r = 0.0f, g = 0.0f, b = 0.0f;
-            for (const auto& c : vertexColors) {
-                r += c.r;
-                g += c.g;
-                b += c.b;
+        const bool hasPerVertexColors = vertexColors.size() == vertices.size();
+
+        if (points.size() == 3 && hasPerVertexColors) {
+            // Use Win32 GradientFill to approximate per-vertex coloring for triangles.
+            TRIVERTEX triVerts[3]{};
+            for (size_t i = 0; i < 3; ++i) {
+                triVerts[i].x = points[i].x;
+                triVerts[i].y = points[i].y;
+                auto clampToByte = [](float v) {
+                    return static_cast<COLOR16>(std::clamp(v, 0.0f, 1.0f) * 255.0f) * 0x0101;
+                };
+                triVerts[i].Red = clampToByte(vertexColors[i].r);
+                triVerts[i].Green = clampToByte(vertexColors[i].g);
+                triVerts[i].Blue = clampToByte(vertexColors[i].b);
+                triVerts[i].Alpha = clampToByte(vertexColors[i].a);
             }
-            const float inv = 1.0f / static_cast<float>(vertexColors.size());
-            color.r = r * inv;
-            color.g = g * inv;
-            color.b = b * inv;
+            GRADIENT_TRIANGLE tri{0, 1, 2};
+            GradientFill(backBufferDC_, triVerts, 3, &tri, 1, GRADIENT_FILL_TRIANGLE);
+        } else {
+            // Fallback renderer fills a single color; if per-vertex colors are present, use an average.
+            AEntity::Color color = entityPtr->getColor();
+            if (hasPerVertexColors && !vertexColors.empty()) {
+                float r = 0.0f, g = 0.0f, b = 0.0f;
+                for (const auto& c : vertexColors) {
+                    r += c.r;
+                    g += c.g;
+                    b += c.b;
+                }
+                const float inv = 1.0f / static_cast<float>(vertexColors.size());
+                color.r = r * inv;
+                color.g = g * inv;
+                color.b = b * inv;
+            }
+
+            const COLORREF rgb = RGB(
+                static_cast<int>(color.r * 255.0f),
+                static_cast<int>(color.g * 255.0f),
+                static_cast<int>(color.b * 255.0f));
+
+            HBRUSH brush = CreateSolidBrush(rgb);
+            HBRUSH oldBrush = (HBRUSH)SelectObject(backBufferDC_, brush);
+            HPEN pen = CreatePen(PS_SOLID, 1, rgb);
+            HPEN oldPen = (HPEN)SelectObject(backBufferDC_, pen);
+
+            Polygon(backBufferDC_, points.data(), static_cast<int>(points.size()));
+
+            SelectObject(backBufferDC_, oldBrush);
+            SelectObject(backBufferDC_, oldPen);
+            DeleteObject(brush);
+            DeleteObject(pen);
         }
-
-        const COLORREF rgb = RGB(
-            static_cast<int>(color.r * 255.0f),
-            static_cast<int>(color.g * 255.0f),
-            static_cast<int>(color.b * 255.0f));
-
-        HBRUSH brush = CreateSolidBrush(rgb);
-        HBRUSH oldBrush = (HBRUSH)SelectObject(backBufferDC_, brush);
-        HPEN pen = CreatePen(PS_SOLID, 1, rgb);
-        HPEN oldPen = (HPEN)SelectObject(backBufferDC_, pen);
-
-        Polygon(backBufferDC_, points.data(), static_cast<int>(points.size()));
-
-        SelectObject(backBufferDC_, oldBrush);
-        SelectObject(backBufferDC_, oldPen);
-        DeleteObject(brush);
-        DeleteObject(pen);
     }
 
     // Blit the finished back buffer to the window DC in one go to avoid flicker.
