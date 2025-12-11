@@ -100,7 +100,8 @@ void OpenGLRenderer::setupState() {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glClearDepth(1.0);
-    glClearColor(0.05f, 0.07f, 0.1f, 1.0f);
+    // Shared default clear color across backends: opaque black for consistency and speed.
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
 void OpenGLRenderer::drawEntity(const AEntity& entity, const glm::mat4& view, const glm::mat4& projection) {

@@ -60,6 +60,7 @@ void DirectX12Renderer::draw(const AViewport& viewport) {
         return;
     }
 
+    // Fast clear to opaque black (shared default across software backends).
     std::memset(colorBits_, 0, static_cast<size_t>(colorStride_) * static_cast<size_t>(backBufferHeight_));
     std::fill(depthBuffer_.begin(), depthBuffer_.end(), 1.0f);
 
