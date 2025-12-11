@@ -8,13 +8,6 @@
 
 namespace {
 
-COLORREF toColorRef(const AEntity::Color& c) {
-    return RGB(
-        static_cast<BYTE>(std::clamp(c.r, 0.0f, 1.0f) * 255.0f),
-        static_cast<BYTE>(std::clamp(c.g, 0.0f, 1.0f) * 255.0f),
-        static_cast<BYTE>(std::clamp(c.b, 0.0f, 1.0f) * 255.0f));
-}
-
 bool projectToScreen(const glm::vec3& world, const glm::mat4& view, const glm::mat4& projection, int width, int height, POINT& out) {
     glm::vec4 clip = projection * view * glm::vec4(world, 1.0f);
     if (clip.w <= 0.0f) {
@@ -48,6 +41,19 @@ bool OpenGLRenderer::initialize(void* nativeWindow, int width, int height) {
 }
 
 void OpenGLRenderer::shutdown() {
+    if (hglrc_ && !fontCache_.empty()) {
+        wglMakeCurrent(hdc_, hglrc_);
+        for (const auto& entry : fontCache_) {
+            if (entry.base != 0) {
+                glDeleteLists(entry.base, 256);
+            }
+            if (entry.font) {
+                DeleteObject(entry.font);
+            }
+        }
+        fontCache_.clear();
+    }
+
     if (hglrc_) {
         wglMakeCurrent(nullptr, nullptr);
         wglDeleteContext(hglrc_);
@@ -82,20 +88,18 @@ void OpenGLRenderer::draw(const AViewport& viewport) {
     glViewport(0, 0, width_, height_);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if (!world_) {
-        SwapBuffers(hdc_);
-        return;
+    if (world_) {
+        const glm::mat4& view = viewport.getViewMatrix();
+        const glm::mat4& projection = viewport.getProjectionMatrix();
+
+        for (const auto& entityPtr : world_->getEntities()) {
+            drawEntity(*entityPtr, view, projection);
+        }
     }
 
-    const glm::mat4& view = viewport.getViewMatrix();
-    const glm::mat4& projection = viewport.getProjectionMatrix();
-
-    for (const auto& entityPtr : world_->getEntities()) {
-        drawEntity(*entityPtr, view, projection);
-    }
-
-    SwapBuffers(hdc_);
+    // Draw overlay into the back buffer using OpenGL so it is stable across swaps.
     drawOverlayText(viewport);
+    SwapBuffers(hdc_);
 }
 
 void OpenGLRenderer::setWorld(AWorld* world) {
@@ -166,8 +170,53 @@ void OpenGLRenderer::drawEntity(const AEntity& entity, const glm::mat4& view, co
     glEnd();
 }
 
+GLuint OpenGLRenderer::getFontBase(int pixelHeight, HFONT& outFont) {
+    for (const auto& entry : fontCache_) {
+        if (entry.size == pixelHeight && entry.base != 0 && entry.font != nullptr) {
+            outFont = entry.font;
+            return entry.base;
+        }
+    }
+
+    HFONT font = CreateFontA(
+        -pixelHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+        DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    if (!font) {
+        return 0;
+    }
+
+    HGDIOBJ old = SelectObject(hdc_, font);
+    GLuint base = glGenLists(256);
+    if (base != 0) {
+        wglUseFontBitmapsA(hdc_, 0, 256, base);
+        fontCache_.push_back(FontEntry{pixelHeight, base, font});
+    } else {
+        DeleteObject(font);
+        font = nullptr;
+    }
+    if (old) {
+        SelectObject(hdc_, old);
+    }
+    outFont = font;
+    return base;
+}
+
+int OpenGLRenderer::measureTextWidth(const std::string& text, HFONT font) const {
+    if (!font || !hdc_) {
+        return 0;
+    }
+    HGDIOBJ old = SelectObject(hdc_, font);
+    SIZE extent{};
+    GetTextExtentPoint32A(hdc_, text.c_str(), static_cast<int>(text.size()), &extent);
+    if (old) {
+        SelectObject(hdc_, old);
+    }
+    return static_cast<int>(extent.cx);
+}
+
 void OpenGLRenderer::drawOverlayText(const AViewport& viewport) {
-    if (!hdc_) {
+    if (!hdc_ || !hglrc_) {
         return;
     }
 
@@ -176,7 +225,20 @@ void OpenGLRenderer::drawOverlayText(const AViewport& viewport) {
         return;
     }
 
-    SetBkMode(hdc_, TRANSPARENT);
+    glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0, width_, height_, 0, -1, 1);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
 
     for (const auto& overlay : overlays) {
         POINT screen{};
@@ -187,28 +249,28 @@ void OpenGLRenderer::drawOverlayText(const AViewport& viewport) {
             continue;
         }
 
-        HFONT font = CreateFontA(
-            -overlay.pixelHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-        HFONT oldFont = nullptr;
-        if (font) {
-            oldFont = (HFONT)SelectObject(hdc_, font);
+        HFONT fontHandle = nullptr;
+        GLuint base = getFontBase(overlay.pixelHeight, fontHandle);
+        if (base == 0 || !fontHandle) {
+            continue;
         }
 
-        SetTextColor(hdc_, toColorRef(overlay.color));
-
-        SIZE extent{};
-        GetTextExtentPoint32A(hdc_, overlay.text.c_str(), static_cast<int>(overlay.text.size()), &extent);
+        int textWidth = measureTextWidth(overlay.text, fontHandle);
         int x = screen.x;
         if (overlay.alignRight) {
-            x -= extent.cx;
+            x -= textWidth;
         }
-        TextOutA(hdc_, x, screen.y, overlay.text.c_str(), static_cast<int>(overlay.text.size()));
+        int y = screen.y + overlay.pixelHeight; // baseline adjustment for top-left origin
 
-        if (font) {
-            SelectObject(hdc_, oldFont);
-            DeleteObject(font);
-        }
+        glColor4f(overlay.color.r, overlay.color.g, overlay.color.b, overlay.color.a);
+        glRasterPos2i(x, y);
+        glListBase(base);
+        glCallLists(static_cast<GLsizei>(overlay.text.size()), GL_UNSIGNED_BYTE, overlay.text.c_str());
     }
+
+    glPopMatrix(); // modelview
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopAttrib();
 }

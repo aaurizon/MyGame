@@ -7,6 +7,8 @@
 #include <Windows.h>
 #include <gl/GL.h>
 #include <AWorld>
+#include <vector>
+#include <string>
 
 class OpenGLRenderer : public IRendererImpl {
 public:
@@ -24,6 +26,8 @@ private:
     void setupState();
     void drawEntity(const AEntity& entity, const glm::mat4& view, const glm::mat4& projection);
     void drawOverlayText(const AViewport& viewport);
+    GLuint getFontBase(int pixelHeight, HFONT& outFont);
+    int measureTextWidth(const std::string& text, HFONT font) const;
 
     HWND hwnd_{nullptr};
     HDC hdc_{nullptr};
@@ -31,4 +35,11 @@ private:
     int width_{0};
     int height_{0};
     AWorld* world_{nullptr};
+
+    struct FontEntry {
+        int size{0};
+        GLuint base{0};
+        HFONT font{nullptr};
+    };
+    std::vector<FontEntry> fontCache_;
 };
