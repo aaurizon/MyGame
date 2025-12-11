@@ -5,6 +5,8 @@
 #include <AViewport>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <limits>
 #include <stdexcept>
 
@@ -64,9 +66,9 @@ void VulkanRenderer::setWorld(AWorld* world) {
 }
 
 void VulkanRenderer::draw(const AViewport& viewport) {
-    // Placeholder: until a full Vulkan pipeline is added, render a simple preview using
-    // Win32 GDI. This keeps the Vulkan backend visibly working (non-black window) and
-    // still projects entities using the active camera matrices.
+    // Placeholder: until a full Vulkan pipeline is added, render using a software rasterizer
+    // backed by a depth buffer for correct visibility. This keeps the Vulkan backend visibly
+    // working (non-black window) while honoring camera matrices.
     if (!hwnd_) {
         return;
     }
@@ -83,10 +85,13 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         return;
     }
 
-    HBRUSH clearBrush = CreateSolidBrush(RGB(18, 22, 28));
-    RECT backRect{0, 0, backBufferWidth_, backBufferHeight_};
-    FillRect(backBufferDC_, &backRect, clearBrush);
-    DeleteObject(clearBrush);
+    // Clear color and depth buffers.
+    if (!colorBits_ || depthBuffer_.empty()) {
+        ReleaseDC(hwnd_, hdc);
+        return;
+    }
+    std::memset(colorBits_, 0, static_cast<size_t>(colorStride_) * static_cast<size_t>(backBufferHeight_));
+    std::fill(depthBuffer_.begin(), depthBuffer_.end(), 1.0f);
 
     if (!world_) {
         BitBlt(hdc, 0, 0, backBufferWidth_, backBufferHeight_, backBufferDC_, 0, 0, SRCCOPY);
@@ -98,17 +103,76 @@ void VulkanRenderer::draw(const AViewport& viewport) {
     const glm::mat4 view = viewport.getViewMatrix();
     const glm::mat4 projection = viewport.getProjectionMatrix();
 
-    struct Primitive {
-        std::vector<POINT> points;
-        std::vector<AEntity::Color> colors;
-        bool hasPerVertexColors{false};
-        bool isTriangle{false};
-        float depth{0.0f}; // normalized depth (0 near, 1 far)
-        AEntity::Color uniformColor;
+    struct ScreenVertex {
+        glm::vec2 pos{};
+        float depth01{1.0f};
+        AEntity::Color color{};
     };
 
-    std::vector<Primitive> primitives;
-    primitives.reserve(world_->getEntities().size());
+    auto rasterizeTriangle = [&](const ScreenVertex& v0, const ScreenVertex& v1, const ScreenVertex& v2, bool interpolateColor, const AEntity::Color& uniformColor) {
+        // Bounding box (inclusive) clamped to target.
+        const float minXf = std::floor(std::min({v0.pos.x, v1.pos.x, v2.pos.x}));
+        const float maxXf = std::ceil(std::max({v0.pos.x, v1.pos.x, v2.pos.x}));
+        const float minYf = std::floor(std::min({v0.pos.y, v1.pos.y, v2.pos.y}));
+        const float maxYf = std::ceil(std::max({v0.pos.y, v1.pos.y, v2.pos.y}));
+
+        const int minX = static_cast<int>(std::clamp(minXf, 0.0f, static_cast<float>(backBufferWidth_ - 1)));
+        const int maxX = static_cast<int>(std::clamp(maxXf, 0.0f, static_cast<float>(backBufferWidth_ - 1)));
+        const int minY = static_cast<int>(std::clamp(minYf, 0.0f, static_cast<float>(backBufferHeight_ - 1)));
+        const int maxY = static_cast<int>(std::clamp(maxYf, 0.0f, static_cast<float>(backBufferHeight_ - 1)));
+
+        const glm::vec2 p0 = v0.pos;
+        const glm::vec2 p1 = v1.pos;
+        const glm::vec2 p2 = v2.pos;
+
+        auto edge = [](const glm::vec2& a, const glm::vec2& b, float px, float py) {
+            return (b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x);
+        };
+
+        const float area = edge(p0, p1, p2.x, p2.y);
+        if (std::abs(area) < 1e-5f) {
+            return; // Degenerate.
+        }
+        const float invArea = 1.0f / area;
+
+        for (int y = minY; y <= maxY; ++y) {
+            for (int x = minX; x <= maxX; ++x) {
+                const float px = static_cast<float>(x) + 0.5f;
+                const float py = static_cast<float>(y) + 0.5f;
+
+                float w0 = edge(p1, p2, px, py);
+                float w1 = edge(p2, p0, px, py);
+                float w2 = edge(p0, p1, px, py);
+
+                // Accept if all have the same sign as area (top-left rule).
+                if ((w0 >= 0 && w1 >= 0 && w2 >= 0 && area > 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0 && area < 0)) {
+                    w0 *= invArea;
+                    w1 *= invArea;
+                    w2 *= invArea;
+                    const float depth = v0.depth01 * w0 + v1.depth01 * w1 + v2.depth01 * w2;
+
+                    const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(backBufferWidth_) + static_cast<size_t>(x);
+                    if (depth < depthBuffer_[idx]) {
+                        depthBuffer_[idx] = depth;
+
+                        AEntity::Color c = uniformColor;
+                        if (interpolateColor) {
+                            c.r = v0.color.r * w1 + v1.color.r * w2 + v2.color.r * w0;
+                            c.g = v0.color.g * w1 + v1.color.g * w2 + v2.color.g * w0;
+                            c.b = v0.color.b * w1 + v1.color.b * w2 + v2.color.b * w0;
+                            c.a = v0.color.a * w1 + v1.color.a * w2 + v2.color.a * w0;
+                        }
+
+                        uint8_t* pxPtr = colorBits_ + static_cast<size_t>(y) * static_cast<size_t>(colorStride_) + static_cast<size_t>(x) * 4;
+                        pxPtr[0] = static_cast<uint8_t>(std::clamp(c.b, 0.0f, 1.0f) * 255.0f);
+                        pxPtr[1] = static_cast<uint8_t>(std::clamp(c.g, 0.0f, 1.0f) * 255.0f);
+                        pxPtr[2] = static_cast<uint8_t>(std::clamp(c.r, 0.0f, 1.0f) * 255.0f);
+                        pxPtr[3] = 255;
+                    }
+                }
+            }
+        }
+    };
 
     for (const auto& entityPtr : world_->getEntities()) {
         const auto& vertices = entityPtr->getVertices();
@@ -119,107 +183,52 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         const glm::mat4 model = glm::translate(glm::mat4(1.0f), entityPtr->getPosition());
         const glm::mat4 mvp = projection * view * model;
 
-        Primitive prim;
-        prim.points.reserve(vertices.size());
-        prim.colors = entityPtr->getVertexColors();
-        prim.hasPerVertexColors = prim.colors.size() == vertices.size();
-        prim.isTriangle = vertices.size() == 3;
-        prim.uniformColor = entityPtr->getColor();
+        std::vector<ScreenVertex> transformed;
+        transformed.reserve(vertices.size());
 
-        float minDepth01 = 1.0f;
-        float depthAccum = 0.0f;
-        int depthCount = 0;
-
-        bool anyBehind = false;
-        for (const auto& v : vertices) {
-            glm::vec4 clip = mvp * glm::vec4(v, 1.0f);
+        const auto& vertexColors = entityPtr->getVertexColors();
+        const bool hasPerVertexColors = vertexColors.size() == vertices.size();
+        for (size_t i = 0; i < vertices.size(); ++i) {
+            glm::vec4 clip = mvp * glm::vec4(vertices[i], 1.0f);
             if (clip.w <= 0.0f) {
-                anyBehind = true;
-                break; // Behind camera; skip primitive to avoid artifacts.
+                transformed.clear();
+                break;
             }
             glm::vec3 ndc = glm::vec3(clip) / clip.w;
             if (ndc.z < -1.0f || ndc.z > 1.0f) {
-                anyBehind = true;
-                break; // Outside clip space in depth; skip.
+                transformed.clear();
+                break;
             }
 
-            POINT p{};
-            p.x = static_cast<LONG>((ndc.x * 0.5f + 0.5f) * static_cast<float>(viewport.getWidth()));
-            p.y = static_cast<LONG>((1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(viewport.getHeight()));
-            prim.points.push_back(p);
-
-            const float depth01 = ndc.z * 0.5f + 0.5f;
-            minDepth01 = std::min(minDepth01, depth01);
-            depthAccum += depth01;
-            depthCount++;
+            ScreenVertex sv;
+            sv.pos.x = (ndc.x * 0.5f + 0.5f) * static_cast<float>(viewport.getWidth());
+            sv.pos.y = (1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(viewport.getHeight());
+            sv.depth01 = ndc.z * 0.5f + 0.5f;
+            sv.color = hasPerVertexColors ? vertexColors[i] : entityPtr->getColor();
+            transformed.push_back(sv);
         }
 
-        if (anyBehind) {
+        if (transformed.size() < 3) {
             continue;
         }
 
-        if (prim.points.size() < 3 || depthCount == 0) {
-            continue;
-        }
+        const bool interpolateColor = hasPerVertexColors;
+        const AEntity::Color uniform = entityPtr->getColor();
 
-        // Use min depth for ordering to avoid near primitives being hidden.
-        prim.depth = minDepth01;
-        primitives.push_back(std::move(prim));
-    }
+        // Triangle list: triangles if size==3, quad split into two, otherwise fan.
+        auto emitTriangle = [&](size_t i0, size_t i1, size_t i2) {
+            rasterizeTriangle(transformed[i0], transformed[i1], transformed[i2], interpolateColor, uniform);
+        };
 
-    // Painter's algorithm: draw far-to-near.
-    std::sort(primitives.begin(), primitives.end(), [](const Primitive& a, const Primitive& b) {
-        return a.depth > b.depth;
-    });
-
-    for (const auto& prim : primitives) {
-        if (prim.isTriangle && prim.hasPerVertexColors) {
-            TRIVERTEX triVerts[3]{};
-            for (size_t i = 0; i < 3; ++i) {
-                triVerts[i].x = prim.points[i].x;
-                triVerts[i].y = prim.points[i].y;
-                auto clampToByte = [](float v) {
-                    return static_cast<COLOR16>(std::clamp(v, 0.0f, 1.0f) * 255.0f) * 0x0101;
-                };
-                triVerts[i].Red = clampToByte(prim.colors[i].r);
-                triVerts[i].Green = clampToByte(prim.colors[i].g);
-                triVerts[i].Blue = clampToByte(prim.colors[i].b);
-                triVerts[i].Alpha = clampToByte(prim.colors[i].a);
-            }
-            GRADIENT_TRIANGLE tri{0, 1, 2};
-            GradientFill(backBufferDC_, triVerts, 3, &tri, 1, GRADIENT_FILL_TRIANGLE);
+        if (transformed.size() == 3) {
+            emitTriangle(0, 1, 2);
+        } else if (transformed.size() == 4) {
+            emitTriangle(0, 1, 2);
+            emitTriangle(0, 2, 3);
         } else {
-            AEntity::Color color = prim.uniformColor;
-            if (prim.hasPerVertexColors) {
-                float r = 0.0f, g = 0.0f, b = 0.0f;
-                for (const auto& c : prim.colors) {
-                    r += c.r;
-                    g += c.g;
-                    b += c.b;
-                }
-                const float inv = 1.0f / static_cast<float>(prim.colors.size());
-                color.r = r * inv;
-                color.g = g * inv;
-                color.b = b * inv;
-                color.a = 1.0f;
+            for (size_t i = 1; i + 1 < transformed.size(); ++i) {
+                emitTriangle(0, i, i + 1);
             }
-
-            const COLORREF rgb = RGB(
-                static_cast<int>(color.r * 255.0f),
-                static_cast<int>(color.g * 255.0f),
-                static_cast<int>(color.b * 255.0f));
-
-            HBRUSH brush = CreateSolidBrush(rgb);
-            HBRUSH oldBrush = (HBRUSH)SelectObject(backBufferDC_, brush);
-            HPEN pen = CreatePen(PS_SOLID, 1, rgb);
-            HPEN oldPen = (HPEN)SelectObject(backBufferDC_, pen);
-
-            Polygon(backBufferDC_, prim.points.data(), static_cast<int>(prim.points.size()));
-
-            SelectObject(backBufferDC_, oldBrush);
-            SelectObject(backBufferDC_, oldPen);
-            DeleteObject(brush);
-            DeleteObject(pen);
         }
     }
 
@@ -241,10 +250,32 @@ void VulkanRenderer::ensureBackBuffer(int width, int height) {
 
     HDC windowDC = GetDC(hwnd_);
     backBufferDC_ = CreateCompatibleDC(windowDC);
-    backBufferBitmap_ = CreateCompatibleBitmap(windowDC, width, height);
+
+    BITMAPINFO bmi{};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = width;
+    bmi.bmiHeader.biHeight = -height; // top-down
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    backBufferBitmap_ = CreateDIBSection(backBufferDC_, &bmi, DIB_RGB_COLORS, reinterpret_cast<void**>(&colorBits_), nullptr, 0);
+    if (!backBufferBitmap_) {
+        DeleteDC(backBufferDC_);
+        backBufferDC_ = nullptr;
+        colorBits_ = nullptr;
+        backBufferWidth_ = backBufferHeight_ = 0;
+        depthBuffer_.clear();
+        ReleaseDC(hwnd_, windowDC);
+        return;
+    }
     backBufferOldBitmap_ = (HBITMAP)SelectObject(backBufferDC_, backBufferBitmap_);
+    colorStride_ = width * 4;
+
     backBufferWidth_ = width;
     backBufferHeight_ = height;
+    depthBuffer_.assign(static_cast<size_t>(width) * static_cast<size_t>(height), 1.0f);
+
     ReleaseDC(hwnd_, windowDC);
 }
 
@@ -261,6 +292,9 @@ void VulkanRenderer::releaseBackBuffer() {
         DeleteDC(backBufferDC_);
         backBufferDC_ = nullptr;
     }
+    colorBits_ = nullptr;
+    colorStride_ = 0;
     backBufferWidth_ = 0;
     backBufferHeight_ = 0;
+    depthBuffer_.clear();
 }
