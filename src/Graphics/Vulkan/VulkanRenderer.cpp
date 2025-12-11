@@ -125,7 +125,8 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         prim.isTriangle = vertices.size() == 3;
         prim.uniformColor = entityPtr->getColor();
 
-        float depthAccum = 0.0f;
+        float minDepth01 = 1.0f;
+        float maxDepth01 = 0.0f;
         int depthCount = 0;
 
         for (const auto& v : vertices) {
@@ -141,7 +142,8 @@ void VulkanRenderer::draw(const AViewport& viewport) {
 
             // Depth in [0,1]: map OpenGL NDC (-1,1) to depth.
             const float depth01 = ndc.z * 0.5f + 0.5f;
-            depthAccum += depth01;
+            minDepth01 = std::min(minDepth01, depth01);
+            maxDepth01 = std::max(maxDepth01, depth01);
             depthCount++;
         }
 
@@ -149,13 +151,14 @@ void VulkanRenderer::draw(const AViewport& viewport) {
             continue;
         }
 
-        prim.depth = depthAccum / static_cast<float>(depthCount);
+        // Use the closest depth of the primitive to drive painter ordering so nearer geometry wins.
+        prim.depth = minDepth01;
         primitives.push_back(std::move(prim));
     }
 
     // Painter's algorithm: draw far-to-near to mimic depth.
     std::sort(primitives.begin(), primitives.end(), [](const Primitive& a, const Primitive& b) {
-        return a.depth > b.depth; // far (larger depth) first
+        return a.depth > b.depth; // far (larger depth) first, using closest-point depth
     });
 
     for (const auto& prim : primitives) {
