@@ -1,4 +1,4 @@
-#include "Win32Window.h"
+#include "../src/Win32Window.h"
 
 #include <iostream>
 

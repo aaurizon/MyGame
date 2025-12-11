@@ -8,15 +8,14 @@ set(VULKAN_SDK_ROOT "C:/VulkanSDK/1.4.335.0")
 
 set(SOURCES
     src/main.cpp
-    src/Win32Window.cpp
-    src/VulkanApp.cpp
 )
 
 add_executable(MyGame ${SOURCES})
 
 target_include_directories(MyGame PRIVATE
-    "${VULKAN_SDK_ROOT}/Include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${VULKAN_SDK_ROOT}/Include"
 )
 target_link_directories(MyGame PRIVATE "${VULKAN_SDK_ROOT}/Lib")
 target_link_libraries(MyGame PRIVATE vulkan-1)

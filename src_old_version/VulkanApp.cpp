@@ -1,12 +1,12 @@
 #define VOLK_IMPLEMENTATION
-#include "VulkanApp.h"
+#include "../src/VulkanApp.h"
 
 #define VMA_IMPLEMENTATION
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #include <vma/vk_mem_alloc.h>
 
-#include "Win32Window.h"
+#include "../src/Win32Window.h"
 
 #include <cstddef>
 #include <algorithm>

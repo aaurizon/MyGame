@@ -1,55 +1,51 @@
-#include "Win32Window.h"
-#include "VulkanApp.h"
-
-const char* WINDOW_TITLE = "MyGame - v1.0.0";
-
-int APIENTRY WinMain(HINSTANCE hInstance,
-                     HINSTANCE hPrevInstance,
-                     LPSTR     lpCmdLine,
-                     int       nCmdShow)
-{
-    (void)hPrevInstance;
-    (void)lpCmdLine;
-    (void)nCmdShow;
-
-    const int windowWidth = 1280;
-    const int windowHeight = 720;
-
-    Win32Window window(hInstance, WINDOW_TITLE, windowWidth, windowHeight);
-    if (!window.IsValid())
-    {
-        return -1;
-    }
-
-    VulkanApp app;
-    if (!app.Initialize(WINDOW_TITLE, window))
-    {
-        MessageBoxA(window.GetHwnd(), "Failed to initialize Vulkan.", "Error", MB_OK | MB_ICONERROR);
-        return -1;
-    }
-
-    MSG msg{};
-    while (window.PumpMessages(msg))
-    {
-        if (!app.DrawFrame(window))
-        {
-            MessageBoxA(window.GetHwnd(), "Render error.", "Error", MB_OK | MB_ICONERROR);
-            break;
-        }
-    }
-
-    return static_cast<int>(msg.wParam);
-}
+#include <glm/glm.hpp>
+#include <ARenderWindow>
+#include <AViewport>
+#include <AWorld>
+#include <AEntity>
+#include <AFreeCamera>
+#include <AEvent>
+#include <EEventKey>
 
 int main(int argc, char* argv[])
 {
-    (void)argc;
-    (void)argv;
+    // Initialize
+    ARenderWindow window("MyGame v1.0.0", 800, 600, EGraphicsBackend::Vulkan);
+    AViewport& viewport = window.getViewport();
 
-    HINSTANCE hInstance = GetModuleHandleA(nullptr);
-    LPSTR lpCmdLine = GetCommandLineA();
-    int nCmdShow = SW_SHOWDEFAULT;
-    HINSTANCE hPrevInstance = nullptr;
+    // World
+    AWorld world;
+    viewport.setWorld(world);
 
-    return WinMain(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
+    AEntity* e1 = AEntity::createTriangle(glm::vec3(0,0,0), glm::vec3(5, 0, 0), glm::vec3(0, 0, 5));
+    AEntity* e2 = AEntity::createRectangle(20, 10);
+
+    world.addEntity(e1);
+    world.addEntity(e2);
+
+    // Controls
+    AFreeCamera camera(viewport, glm::vec3(0, 0, 30), glm::vec3(0, 0, 0)); // Viewport, Position, Lookat
+
+    // Process
+    while (window.isOpen())
+    {
+        for (auto event : window.pollEvents())
+        {
+            if (event->is<AEvent::Closed>())
+            {
+                window.close();
+            }
+            else if (const auto* keyPressed = event->getIf<AEvent::KeyPressed>())
+            {
+                if (keyPressed->scancode == EEventKey::Scancode::Escape)
+                    window.close();
+            }
+
+            camera.dispatchEvent(event);
+        }
+
+        window.display();
+    }
+
+    return 0;
 }
