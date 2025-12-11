@@ -1,0 +1,71 @@
+// Public event hierarchy used by application code to inspect window and input events.
+#pragma once
+
+#include <glm/vec2.hpp>
+#include <EEventKey>
+
+class AEvent {
+public:
+    enum class Type {
+        Closed,
+        KeyPressed,
+        KeyReleased,
+        MouseMoved,
+        MouseButtonPressed,
+        MouseButtonReleased
+    };
+
+    virtual ~AEvent() = default;
+    virtual Type getType() const = 0;
+
+    template <typename T>
+    bool is() const {
+        return getType() == T::StaticType;
+    }
+
+    template <typename T>
+    const T* getIf() const {
+        return is<T>() ? static_cast<const T*>(this) : nullptr;
+    }
+
+    struct Closed : public AEvent {
+        static constexpr Type StaticType = Type::Closed;
+        Type getType() const override { return StaticType; }
+    };
+
+    struct KeyPressed : public AEvent {
+        static constexpr Type StaticType = Type::KeyPressed;
+        explicit KeyPressed(EEventKey::Scancode code) : scancode(code) {}
+        Type getType() const override { return StaticType; }
+        EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
+    };
+
+    struct KeyReleased : public AEvent {
+        static constexpr Type StaticType = Type::KeyReleased;
+        explicit KeyReleased(EEventKey::Scancode code) : scancode(code) {}
+        Type getType() const override { return StaticType; }
+        EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
+    };
+
+    struct MouseMoved : public AEvent {
+        static constexpr Type StaticType = Type::MouseMoved;
+        MouseMoved(float dx, float dy, float x, float y) : delta(dx, dy), position(x, y) {}
+        Type getType() const override { return StaticType; }
+        glm::vec2 delta;
+        glm::vec2 position;
+    };
+
+    struct MouseButtonPressed : public AEvent {
+        static constexpr Type StaticType = Type::MouseButtonPressed;
+        explicit MouseButtonPressed(EEventKey::Scancode buttonCode) : scancode(buttonCode) {}
+        Type getType() const override { return StaticType; }
+        EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
+    };
+
+    struct MouseButtonReleased : public AEvent {
+        static constexpr Type StaticType = Type::MouseButtonReleased;
+        explicit MouseButtonReleased(EEventKey::Scancode buttonCode) : scancode(buttonCode) {}
+        Type getType() const override { return StaticType; }
+        EEventKey::Scancode scancode{EEventKey::Scancode::Unknown};
+    };
+};

@@ -1,0 +1,31 @@
+// Public render window that owns the viewport, renderer backend, and event pump.
+#pragma once
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <AViewport>
+#include <AEvent>
+#include <EGraphicsBackend>
+
+class ARenderWindow {
+public:
+    ARenderWindow(const std::string& title, int width, int height, EGraphicsBackend backend);
+    ~ARenderWindow();
+
+    bool isOpen() const;
+    void close();
+
+    std::vector<std::shared_ptr<AEvent>> pollEvents();
+    void display();
+
+    void setGraphicsBackend(EGraphicsBackend backend);
+    EGraphicsBackend getGraphicsBackend() const;
+
+    AViewport& getViewport();
+
+private:
+    class Impl;
+    std::unique_ptr<Impl> impl_;
+};

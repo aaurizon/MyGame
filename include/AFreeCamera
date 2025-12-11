@@ -1,0 +1,30 @@
+// Basic free-look camera for navigating the scene using keyboard and mouse.
+#pragma once
+
+#include <AViewport>
+#include <AEvent>
+#include <glm/glm.hpp>
+
+class AFreeCamera {
+public:
+    AFreeCamera(AViewport& viewport, const glm::vec3& position, const glm::vec3& lookAt);
+
+    void dispatchEvent(const AEvent* event);
+
+    const glm::vec3& getPosition() const;
+    const glm::vec3& getForward() const;
+
+private:
+    void updateMatrices();
+    void handleKeyPressed(EEventKey::Scancode code);
+    void handleMouseMoved(const AEvent::MouseMoved* moveEvent);
+
+    AViewport& viewport_;
+    glm::vec3 position_;
+    glm::vec3 forward_;
+    glm::vec3 up_{0.0f, 0.0f, 1.0f};
+    float yaw_{0.0f};
+    float pitch_{0.0f};
+    float moveStep_{1.0f};
+    float mouseSensitivity_{0.15f};
+};

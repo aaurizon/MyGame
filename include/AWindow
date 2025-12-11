@@ -1,0 +1,13 @@
+// Base window abstraction kept for API completeness. Concrete rendering behavior lives in ARenderWindow.
+#pragma once
+
+#include <string>
+
+class AWindow {
+public:
+    virtual ~AWindow() = default;
+
+    virtual bool isOpen() const = 0;
+    virtual void close() = 0;
+    virtual void setTitle(const std::string& title) = 0;
+};

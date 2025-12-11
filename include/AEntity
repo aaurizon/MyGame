@@ -1,0 +1,33 @@
+// Simple renderable entity carrying geometry and a transform.
+#pragma once
+
+#include <glm/glm.hpp>
+#include <vector>
+
+class AEntity {
+public:
+    struct Color {
+        float r{1.0f};
+        float g{1.0f};
+        float b{1.0f};
+        float a{1.0f};
+    };
+
+    static AEntity* createTriangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
+    static AEntity* createRectangle(float width, float height);
+
+    const std::vector<glm::vec3>& getVertices() const;
+    const Color& getColor() const;
+
+    void setPosition(const glm::vec3& pos);
+    const glm::vec3& getPosition() const;
+
+    void setColor(const Color& color);
+
+private:
+    explicit AEntity(const std::vector<glm::vec3>& vertices);
+
+    std::vector<glm::vec3> vertices_;
+    glm::vec3 position_{0.0f, 0.0f, 0.0f};
+    Color color_{1.0f, 1.0f, 1.0f, 1.0f};
+};

@@ -1,0 +1,83 @@
+#include <AFreeCamera>
+
+#include <glm/gtc/matrix_transform.hpp>
+#include <cmath>
+
+AFreeCamera::AFreeCamera(AViewport& viewport, const glm::vec3& position, const glm::vec3& lookAt)
+    : viewport_(viewport), position_(position) {
+    forward_ = glm::normalize(lookAt - position_);
+    yaw_ = std::atan2(forward_.y, forward_.x);
+    pitch_ = std::asin(forward_.z);
+    updateMatrices();
+}
+
+void AFreeCamera::dispatchEvent(const AEvent* event) {
+    if (!event) {
+        return;
+    }
+
+    if (event->is<AEvent::KeyPressed>()) {
+        handleKeyPressed(event->getIf<AEvent::KeyPressed>()->scancode);
+    } else if (const auto* moveEvent = event->getIf<AEvent::MouseMoved>()) {
+        handleMouseMoved(moveEvent);
+    }
+}
+
+const glm::vec3& AFreeCamera::getPosition() const {
+    return position_;
+}
+
+const glm::vec3& AFreeCamera::getForward() const {
+    return forward_;
+}
+
+void AFreeCamera::updateMatrices() {
+    forward_.x = std::cos(pitch_) * std::cos(yaw_);
+    forward_.y = std::cos(pitch_) * std::sin(yaw_);
+    forward_.z = std::sin(pitch_);
+    forward_ = glm::normalize(forward_);
+
+    const glm::vec3 focus = position_ + forward_;
+    glm::mat4 view = glm::lookAt(position_, focus, up_);
+    glm::mat4 projection = glm::perspective(glm::radians(60.0f), viewport_.getAspectRatio(), 0.1f, 1000.0f);
+
+    viewport_.setViewMatrix(view);
+    viewport_.setProjectionMatrix(projection);
+}
+
+void AFreeCamera::handleKeyPressed(EEventKey::Scancode code) {
+    glm::vec3 right = glm::normalize(glm::cross(forward_, up_));
+    switch (code) {
+    case EEventKey::Scancode::W:
+    case EEventKey::Scancode::Up:
+        position_ += forward_ * moveStep_;
+        break;
+    case EEventKey::Scancode::S:
+    case EEventKey::Scancode::Down:
+        position_ -= forward_ * moveStep_;
+        break;
+    case EEventKey::Scancode::A:
+    case EEventKey::Scancode::Left:
+        position_ -= right * moveStep_;
+        break;
+    case EEventKey::Scancode::D:
+    case EEventKey::Scancode::Right:
+        position_ += right * moveStep_;
+        break;
+    default:
+        break;
+    }
+
+    updateMatrices();
+}
+
+void AFreeCamera::handleMouseMoved(const AEvent::MouseMoved* moveEvent) {
+    yaw_ += moveEvent->delta.x * mouseSensitivity_ * 0.01f;
+    pitch_ -= moveEvent->delta.y * mouseSensitivity_ * 0.01f;
+
+    const float maxPitch = glm::radians(89.0f);
+    if (pitch_ > maxPitch) pitch_ = maxPitch;
+    if (pitch_ < -maxPitch) pitch_ = -maxPitch;
+
+    updateMatrices();
+}

@@ -1,5 +1,14 @@
 # Requirements
 
+## Quick start (CMake)
+
+1. Install the Vulkan SDK and update `VULKAN_SDK_ROOT` in `CMakeLists.txt` if it differs from the default `C:/VulkanSDK/1.4.335.0`.
+2. Configure: `cmake -S . -B build`
+3. Build: `cmake --build build`
+4. Run: `./build/MyGame` (from the repo root). Use `WASD`/arrow keys to move the camera and the mouse to look around. Press `Esc` to close the window.
+
+The engine targets Windows/Win32 today with OpenGL and a placeholder Vulkan backend; the backend can be switched at runtime through `ARenderWindow::setGraphicsBackend`.
+
 ## MinGW
 
 LLVCM ou MinGW-W64 (x86_64-15.2.0-release-posix-seh-ucrt-rt_v13-rev0)
@@ -65,7 +74,6 @@ Not required for normal development.
 Tools for building Vulkan applications targeting ARM64.  
 Not needed when developing only for Windows x64.  
 **Use: No (unless targeting ARM64)**
-
 
 
 

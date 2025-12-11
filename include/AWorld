@@ -1,0 +1,19 @@
+// World container that stores entities to render.
+#pragma once
+
+#include <AEntity>
+#include <memory>
+#include <vector>
+
+class AWorld {
+public:
+    AWorld() = default;
+    ~AWorld() = default;
+
+    // The world takes ownership of the pointer and deletes it when the world is destroyed.
+    void addEntity(AEntity* entity);
+    const std::vector<std::unique_ptr<AEntity>>& getEntities() const;
+
+private:
+    std::vector<std::unique_ptr<AEntity>> entities_;
+};

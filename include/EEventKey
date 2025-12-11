@@ -1,0 +1,24 @@
+// Enumeration describing engine scancodes. Values are mapped from platform specific codes in the window implementation.
+#pragma once
+
+class EEventKey {
+public:
+    enum class Scancode {
+        Unknown = 0,
+        Escape,
+        W,
+        A,
+        S,
+        D,
+        Up,
+        Down,
+        Left,
+        Right,
+        Space,
+        Shift,
+        Control,
+        MouseLeft,
+        MouseRight,
+        MouseMiddle
+    };
+};
