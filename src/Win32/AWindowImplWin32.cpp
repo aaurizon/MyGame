@@ -11,7 +11,9 @@ EEventKey::Scancode mapVirtualKey(WPARAM wParam) {
     switch (wParam) {
     case VK_ESCAPE: return EEventKey::Scancode::Escape;
     case 'W': return EEventKey::Scancode::W;
+    case 'Z': return EEventKey::Scancode::W; // AZERTY forward
     case 'A': return EEventKey::Scancode::A;
+    case 'Q': return EEventKey::Scancode::A; // AZERTY left
     case 'S': return EEventKey::Scancode::S;
     case 'D': return EEventKey::Scancode::D;
     case 'P': return EEventKey::Scancode::P;

@@ -127,14 +127,22 @@ void VulkanRenderer::draw(const AViewport& viewport) {
 
         float minDepth01 = 1.0f;
         float maxDepth01 = 0.0f;
+        float depthAccum = 0.0f;
         int depthCount = 0;
 
+        bool anyBehind = false;
         for (const auto& v : vertices) {
             glm::vec4 clip = mvp * glm::vec4(v, 1.0f);
-            if (clip.w == 0.0f) {
-                continue;
+            if (clip.w <= 0.0f) {
+                anyBehind = true;
+                break; // Behind camera; skip primitive to avoid artifacts.
             }
             glm::vec3 ndc = glm::vec3(clip) / clip.w;
+            if (ndc.z < -1.0f || ndc.z > 1.0f) {
+                anyBehind = true;
+                break; // Outside clip space in depth; skip.
+            }
+
             POINT p{};
             p.x = static_cast<LONG>((ndc.x * 0.5f + 0.5f) * static_cast<float>(viewport.getWidth()));
             p.y = static_cast<LONG>((1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(viewport.getHeight()));
@@ -144,15 +152,20 @@ void VulkanRenderer::draw(const AViewport& viewport) {
             const float depth01 = ndc.z * 0.5f + 0.5f;
             minDepth01 = std::min(minDepth01, depth01);
             maxDepth01 = std::max(maxDepth01, depth01);
+            depthAccum += depth01;
             depthCount++;
+        }
+
+        if (anyBehind) {
+            continue;
         }
 
         if (prim.points.size() < 3 || depthCount == 0) {
             continue;
         }
 
-        // Use the closest depth of the primitive to drive painter ordering so nearer geometry wins.
-        prim.depth = minDepth01;
+        // Use average depth for ordering to reduce popping on large primitives.
+        prim.depth = depthAccum / static_cast<float>(depthCount);
         primitives.push_back(std::move(prim));
     }
 
