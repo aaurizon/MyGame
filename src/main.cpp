@@ -68,6 +68,8 @@ int main(int argc, char* argv[])
     // Overlays and floating texts.
     ARenderOverlay hudOverlay;
     AText& fpsText = hudOverlay.addText(AText("FPS: 0.0", {12, 12}, true, 16, {0.9f, 0.9f, 0.9f, 1.0f}));
+    AText& camDebugText = hudOverlay.addText(AText("", {12, 32}, false, 14, {0.7f, 0.9f, 1.0f, 1.0f}));
+    bool showCamDebug = true;
 
     const auto& triVerts = e1->getVertices();
     glm::vec3 triCentroid{0.0f};
@@ -152,6 +154,10 @@ int main(int argc, char* argv[])
                     dx11Render.setGraphicsBackend(nextBackend(dx11Render.getGraphicsBackend()));
                     dx12Render.setGraphicsBackend(nextBackend(dx12Render.getGraphicsBackend()));
                 }
+                else if (keyPressed->scancode == EEventKey::Scancode::L)
+                {
+                    showCamDebug = !showCamDebug;
+                }
             }
 
             camera.dispatchEvent(event);
@@ -160,6 +166,17 @@ int main(int argc, char* argv[])
         char fpsBuffer[32];
         std::snprintf(fpsBuffer, sizeof(fpsBuffer), "FPS: %.1f", fpsCounter.getFps());
         fpsText.setText(fpsBuffer);
+        if (showCamDebug) {
+            const auto& pos = camera.getPosition();
+            const auto& fwd = camera.getForward();
+            char camBuffer[128];
+            std::snprintf(camBuffer, sizeof(camBuffer),
+                          "Cam pos(%.1f, %.1f, %.1f) fwd(%.2f, %.2f, %.2f)",
+                          pos.x, pos.y, pos.z, fwd.x, fwd.y, fwd.z);
+            camDebugText.setText(camBuffer);
+        } else {
+            camDebugText.setText("");
+        }
 
         glRender.display();
         vkRender.display();

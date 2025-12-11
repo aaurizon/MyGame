@@ -65,13 +65,7 @@ void AFreeCamera::updateMatrices() {
         viewport->setProjectionMatrix(projection);
     }
 
-    // Simple runtime feedback to verify camera controls.
-    const float yawDeg = glm::degrees(yaw_);
-    const float pitchDeg = glm::degrees(pitch_);
-    std::cout << "[Camera] pos(" << position_.x << ", " << position_.y << ", " << position_.z
-              << ") forward(" << forward_.x << ", " << forward_.y << ", " << forward_.z
-              << ") yaw " << yawDeg << " deg"
-              << " pitch " << pitchDeg << " deg" << std::endl;
+    // Silent by default; use overlay in main loop for debug info.
 }
 
 void AFreeCamera::handleKeyPressed(EEventKey::Scancode code) {
