@@ -1,4 +1,4 @@
-#include "VulkanRenderer.h"
+#include "DirectX12Renderer.h"
 
 #include <AEntity>
 #include <AWorld>
@@ -9,88 +9,52 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
-#include <stdexcept>
 
-VulkanRenderer::VulkanRenderer() = default;
+DirectX12Renderer::DirectX12Renderer() = default;
 
-VulkanRenderer::~VulkanRenderer() {
+DirectX12Renderer::~DirectX12Renderer() {
     shutdown();
 }
 
-bool VulkanRenderer::initialize(void* nativeWindow, int width, int height) {
+bool DirectX12Renderer::initialize(void* nativeWindow, int width, int height) {
     hwnd_ = static_cast<HWND>(nativeWindow);
     width_ = width;
     height_ = height;
     ensureBackBuffer(width_, height_);
-
-    // Minimal instance creation to validate that Vulkan runtime is reachable.
-    VkApplicationInfo appInfo{};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "MyGameEngine";
-    appInfo.apiVersion = VK_API_VERSION_1_0;
-
-    const char* extensions[] = { "VK_KHR_surface", "VK_KHR_win32_surface" };
-
-    VkInstanceCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.pApplicationInfo = &appInfo;
-    createInfo.enabledExtensionCount = 2;
-    createInfo.ppEnabledExtensionNames = extensions;
-
-    VkResult result = vkCreateInstance(&createInfo, nullptr, &instance_);
-    if (result != VK_SUCCESS) {
-        instance_ = VK_NULL_HANDLE;
-    }
-
-    return true;
+    return hwnd_ != nullptr;
 }
 
-void VulkanRenderer::shutdown() {
+void DirectX12Renderer::shutdown() {
     releaseBackBuffer();
-
-    if (instance_ != VK_NULL_HANDLE) {
-        vkDestroyInstance(instance_, nullptr);
-        instance_ = VK_NULL_HANDLE;
-    }
     hwnd_ = nullptr;
 }
 
-void VulkanRenderer::resize(int width, int height) {
+void DirectX12Renderer::resize(int width, int height) {
     width_ = width;
     height_ = height;
     ensureBackBuffer(width_, height_);
 }
 
-void VulkanRenderer::setWorld(AWorld* world) {
-    // World data is consumed during GDI fallback draw; store the pointer.
+void DirectX12Renderer::setWorld(AWorld* world) {
     world_ = world;
 }
 
-void VulkanRenderer::draw(const AViewport& viewport) {
-    // Placeholder: until a full Vulkan pipeline is added, render using a software rasterizer
-    // backed by a depth buffer for correct visibility. This keeps the Vulkan backend visibly
-    // working (non-black window) while honoring camera matrices.
+void DirectX12Renderer::draw(const AViewport& viewport) {
     if (!hwnd_) {
         return;
     }
 
     HDC hdc = GetDC(hwnd_);
 
-    // Keep back buffer in sync with the viewport/window size.
     if (viewport.getWidth() != backBufferWidth_ || viewport.getHeight() != backBufferHeight_) {
         resize(viewport.getWidth(), viewport.getHeight());
     }
 
-    if (!backBufferDC_ || !backBufferBitmap_) {
+    if (!backBufferDC_ || !backBufferBitmap_ || !colorBits_ || depthBuffer_.empty()) {
         ReleaseDC(hwnd_, hdc);
         return;
     }
 
-    // Clear color and depth buffers.
-    if (!colorBits_ || depthBuffer_.empty()) {
-        ReleaseDC(hwnd_, hdc);
-        return;
-    }
     std::memset(colorBits_, 0, static_cast<size_t>(colorStride_) * static_cast<size_t>(backBufferHeight_));
     std::fill(depthBuffer_.begin(), depthBuffer_.end(), 1.0f);
 
@@ -100,7 +64,6 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         return;
     }
 
-    // Acquire the latest viewport matrices (already updated by the caller).
     const glm::mat4 view = viewport.getViewMatrix();
     const glm::mat4 projection = viewport.getProjectionMatrix();
 
@@ -110,8 +73,83 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         AEntity::Color color{};
     };
 
+    struct ClipVertex {
+        glm::vec4 pos{};
+        AEntity::Color color{};
+    };
+
+    enum class ClipPlane {
+        Left, Right, Bottom, Top, Near, Far
+    };
+
+    auto interpolateClip = [](const ClipVertex& a, const ClipVertex& b, float t) {
+        ClipVertex out;
+        out.pos = a.pos + t * (b.pos - a.pos);
+        out.color.r = a.color.r + t * (b.color.r - a.color.r);
+        out.color.g = a.color.g + t * (b.color.g - a.color.g);
+        out.color.b = a.color.b + t * (b.color.b - a.color.b);
+        out.color.a = a.color.a + t * (b.color.a - a.color.a);
+        return out;
+    };
+
+    auto inside = [](const ClipVertex& v, ClipPlane plane) {
+        switch (plane) {
+        case ClipPlane::Left:   return v.pos.x >= -v.pos.w;
+        case ClipPlane::Right:  return v.pos.x <=  v.pos.w;
+        case ClipPlane::Bottom: return v.pos.y >= -v.pos.w;
+        case ClipPlane::Top:    return v.pos.y <=  v.pos.w;
+        case ClipPlane::Near:   return v.pos.z >= -v.pos.w;
+        case ClipPlane::Far:    return v.pos.z <=  v.pos.w;
+        default: return false;
+        }
+    };
+
+    auto computeT = [](const glm::vec4& a, const glm::vec4& b, ClipPlane plane) -> float {
+        auto safeDiv = [](float num, float den) {
+            if (std::abs(den) < 1e-6f) {
+                return 0.0f;
+            }
+            float t = num / den;
+            return std::clamp(t, 0.0f, 1.0f);
+        };
+        switch (plane) {
+        case ClipPlane::Left:   return safeDiv((-(a.w + a.x)), ((b.w - a.w) + (b.x - a.x)));
+        case ClipPlane::Right:  return safeDiv((a.w - a.x),     ((b.w - a.w) - (b.x - a.x)));
+        case ClipPlane::Bottom: return safeDiv((-(a.w + a.y)), ((b.w - a.w) + (b.y - a.y)));
+        case ClipPlane::Top:    return safeDiv((a.w - a.y),     ((b.w - a.w) - (b.y - a.y)));
+        case ClipPlane::Near:   return safeDiv((-(a.w + a.z)), ((b.w - a.w) + (b.z - a.z)));
+        case ClipPlane::Far:    return safeDiv((a.w - a.z),     ((b.w - a.w) - (b.z - a.z)));
+        default: return 0.0f;
+        }
+    };
+
+    auto clipPolygon = [&](const std::vector<ClipVertex>& input, ClipPlane plane) {
+        std::vector<ClipVertex> out;
+        if (input.empty()) {
+            return out;
+        }
+        const size_t count = input.size();
+        for (size_t i = 0; i < count; ++i) {
+            const ClipVertex& current = input[i];
+            const ClipVertex& next = input[(i + 1) % count];
+            const bool currentInside = inside(current, plane);
+            const bool nextInside = inside(next, plane);
+
+            if (currentInside && nextInside) {
+                out.push_back(next);
+            } else if (currentInside && !nextInside) {
+                float t = computeT(current.pos, next.pos, plane);
+                out.push_back(interpolateClip(current, next, t));
+            } else if (!currentInside && nextInside) {
+                float t = computeT(current.pos, next.pos, plane);
+                out.push_back(interpolateClip(current, next, t));
+                out.push_back(next);
+            }
+        }
+        return out;
+    };
+
     auto rasterizeTriangle = [&](const ScreenVertex& v0, const ScreenVertex& v1, const ScreenVertex& v2, bool interpolateColor, const AEntity::Color& uniformColor) {
-        // Bounding box (inclusive) clamped to target.
         const float minXf = std::floor(std::min({v0.pos.x, v1.pos.x, v2.pos.x}));
         const float maxXf = std::ceil(std::max({v0.pos.x, v1.pos.x, v2.pos.x}));
         const float minYf = std::floor(std::min({v0.pos.y, v1.pos.y, v2.pos.y}));
@@ -132,7 +170,7 @@ void VulkanRenderer::draw(const AViewport& viewport) {
 
         const float area = edge(p0, p1, p2.x, p2.y);
         if (std::abs(area) < 1e-5f) {
-            return; // Degenerate.
+            return;
         }
         const float invArea = 1.0f / area;
 
@@ -145,7 +183,6 @@ void VulkanRenderer::draw(const AViewport& viewport) {
                 float w1 = edge(p2, p0, px, py);
                 float w2 = edge(p0, p1, px, py);
 
-                // Accept if all have the same sign as area (top-left rule).
                 if ((w0 >= 0 && w1 >= 0 && w2 >= 0 && area > 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0 && area < 0)) {
                     w0 *= invArea;
                     w1 *= invArea;
@@ -184,28 +221,47 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         const glm::mat4 model = glm::translate(glm::mat4(1.0f), entityPtr->getPosition());
         const glm::mat4 mvp = projection * view * model;
 
-        std::vector<ScreenVertex> transformed;
-        transformed.reserve(vertices.size());
-
         const auto& vertexColors = entityPtr->getVertexColors();
         const bool hasPerVertexColors = vertexColors.size() == vertices.size();
+
+        std::vector<ClipVertex> clipVertices;
+        clipVertices.reserve(vertices.size());
         for (size_t i = 0; i < vertices.size(); ++i) {
             glm::vec4 clip = mvp * glm::vec4(vertices[i], 1.0f);
-            if (clip.w <= 0.0f) {
-                transformed.clear();
-                break;
-            }
-            glm::vec3 ndc = glm::vec3(clip) / clip.w;
-            if (ndc.z < -1.0f || ndc.z > 1.0f) {
-                transformed.clear();
-                break;
-            }
+            ClipVertex cv;
+            cv.pos = clip;
+            cv.color = hasPerVertexColors ? vertexColors[i] : entityPtr->getColor();
+            clipVertices.push_back(cv);
+        }
 
+        if (clipVertices.size() < 3) {
+            continue;
+        }
+
+        std::array<ClipPlane, 6> planes = {
+            ClipPlane::Left, ClipPlane::Right,
+            ClipPlane::Bottom, ClipPlane::Top,
+            ClipPlane::Near, ClipPlane::Far
+        };
+        for (ClipPlane plane : planes) {
+            clipVertices = clipPolygon(clipVertices, plane);
+            if (clipVertices.size() < 3) {
+                break;
+            }
+        }
+        if (clipVertices.size() < 3) {
+            continue;
+        }
+
+        std::vector<ScreenVertex> transformed;
+        transformed.reserve(clipVertices.size());
+        for (const auto& cv : clipVertices) {
+            glm::vec3 ndc = glm::vec3(cv.pos) / cv.pos.w;
             ScreenVertex sv;
             sv.pos.x = (ndc.x * 0.5f + 0.5f) * static_cast<float>(viewport.getWidth());
             sv.pos.y = (1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(viewport.getHeight());
             sv.depth01 = ndc.z * 0.5f + 0.5f;
-            sv.color = hasPerVertexColors ? vertexColors[i] : entityPtr->getColor();
+            sv.color = cv.color;
             transformed.push_back(sv);
         }
 
@@ -216,7 +272,6 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         const bool interpolateColor = hasPerVertexColors;
         const AEntity::Color uniform = entityPtr->getColor();
 
-        // Triangle list: triangles if size==3, quad split into two, otherwise fan.
         auto emitTriangle = [&](size_t i0, size_t i1, size_t i2) {
             rasterizeTriangle(transformed[i0], transformed[i1], transformed[i2], interpolateColor, uniform);
         };
@@ -233,18 +288,16 @@ void VulkanRenderer::draw(const AViewport& viewport) {
         }
     }
 
-    // Blit the finished back buffer to the window DC in one go to avoid flicker.
     BitBlt(hdc, 0, 0, backBufferWidth_, backBufferHeight_, backBufferDC_, 0, 0, SRCCOPY);
     ReleaseDC(hwnd_, hdc);
 }
 
-void VulkanRenderer::ensureBackBuffer(int width, int height) {
+void DirectX12Renderer::ensureBackBuffer(int width, int height) {
     if (!hwnd_) {
         return;
     }
-
     if (backBufferBitmap_ && width == backBufferWidth_ && height == backBufferHeight_) {
-        return; // Already correct size.
+        return;
     }
 
     releaseBackBuffer();
@@ -255,7 +308,7 @@ void VulkanRenderer::ensureBackBuffer(int width, int height) {
     BITMAPINFO bmi{};
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bmi.bmiHeader.biWidth = width;
-    bmi.bmiHeader.biHeight = -height; // top-down
+    bmi.bmiHeader.biHeight = -height;
     bmi.bmiHeader.biPlanes = 1;
     bmi.bmiHeader.biBitCount = 32;
     bmi.bmiHeader.biCompression = BI_RGB;
@@ -270,6 +323,7 @@ void VulkanRenderer::ensureBackBuffer(int width, int height) {
         ReleaseDC(hwnd_, windowDC);
         return;
     }
+
     backBufferOldBitmap_ = (HBITMAP)SelectObject(backBufferDC_, backBufferBitmap_);
     colorStride_ = width * 4;
 
@@ -280,7 +334,7 @@ void VulkanRenderer::ensureBackBuffer(int width, int height) {
     ReleaseDC(hwnd_, windowDC);
 }
 
-void VulkanRenderer::releaseBackBuffer() {
+void DirectX12Renderer::releaseBackBuffer() {
     if (backBufferDC_) {
         if (backBufferOldBitmap_) {
             SelectObject(backBufferDC_, backBufferOldBitmap_);

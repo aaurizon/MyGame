@@ -3,6 +3,8 @@
 #include <Graphics/IRendererImpl.h>
 #include <Graphics/OpenGL/OpenGLRenderer.h>
 #include <Graphics/Vulkan/VulkanRenderer.h>
+#include <Graphics/DirectX11/DirectX11Renderer.h>
+#include <Graphics/DirectX12/DirectX12Renderer.h>
 #include <cassert>
 
 namespace {
@@ -13,6 +15,10 @@ std::unique_ptr<IRendererImpl> createRenderer(EGraphicsBackend backend) {
         return std::make_unique<OpenGLRenderer>();
     case EGraphicsBackend::Vulkan:
         return std::make_unique<VulkanRenderer>();
+    case EGraphicsBackend::DirectX11:
+        return std::make_unique<DirectX11Renderer>();
+    case EGraphicsBackend::DirectX12:
+        return std::make_unique<DirectX12Renderer>();
     default:
         return std::make_unique<OpenGLRenderer>();
     }

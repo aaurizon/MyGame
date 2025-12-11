@@ -18,6 +18,8 @@ set(ENGINE_SOURCES
     src/Win32/AWindowImplWin32.cpp
     src/Graphics/OpenGL/OpenGLRenderer.cpp
     src/Graphics/Vulkan/VulkanRenderer.cpp
+    src/Graphics/DirectX11/DirectX11Renderer.cpp
+    src/Graphics/DirectX12/DirectX12Renderer.cpp
 )
 
 add_library(MyGameEngine STATIC ${ENGINE_SOURCES})
@@ -29,7 +31,7 @@ target_include_directories(MyGameEngine PUBLIC
 # Vulkan import library path needs to be visible to dependents so that linking
 # the executable resolves -lvulkan-1 when using MinGW.
 target_link_directories(MyGameEngine PUBLIC "${VULKAN_SDK_ROOT}/Lib")
-target_link_libraries(MyGameEngine PUBLIC vulkan-1 opengl32 user32 gdi32 msimg32)
+target_link_libraries(MyGameEngine PUBLIC vulkan-1 opengl32 d3d11 dxgi d3d12 dxguid user32 gdi32 msimg32)
 target_compile_definitions(MyGameEngine PRIVATE
     VK_USE_PLATFORM_WIN32_KHR
     VMA_STATIC_VULKAN_FUNCTIONS=0

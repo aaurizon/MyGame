@@ -1,0 +1,40 @@
+#pragma once
+
+#include <Graphics/IRendererImpl.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#include <d3d12.h>
+#include <vector>
+
+// DirectX 12 renderer stub: software rasterizer with depth buffer for parity.
+class DirectX12Renderer : public IRendererImpl {
+public:
+    DirectX12Renderer();
+    ~DirectX12Renderer() override;
+
+    bool initialize(void* nativeWindow, int width, int height) override;
+    void shutdown() override;
+    void resize(int width, int height) override;
+    void draw(const AViewport& viewport) override;
+    void setWorld(class AWorld* world) override;
+
+private:
+    AWorld* world_{nullptr};
+    HWND hwnd_{nullptr};
+    int width_{0};
+    int height_{0};
+
+    HDC backBufferDC_{nullptr};
+    HBITMAP backBufferBitmap_{nullptr};
+    HBITMAP backBufferOldBitmap_{nullptr};
+    uint8_t* colorBits_{nullptr};
+    int colorStride_{0};
+    int backBufferWidth_{0};
+    int backBufferHeight_{0};
+    std::vector<float> depthBuffer_;
+
+    void ensureBackBuffer(int width, int height);
+    void releaseBackBuffer();
+};

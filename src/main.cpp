@@ -11,22 +11,30 @@
 
 int main(int argc, char* argv[])
 {
-    // Initialize: parent window + two child render windows (Vulkan on left, OpenGL on right).
-    AWindow mainWindow("MyGame v1.0.0", 1200, 600);
+    // Initialize: parent window + four child render windows (GL, VK, DX11, DX12).
+    AWindow mainWindow("MyGame v1.0.0", 1200, 800);
     const int initialWidth = mainWindow.getWidth();
     const int initialHeight = mainWindow.getHeight();
-    const int initialSplit = initialWidth / 2;
+    const int halfWidth = initialWidth / 2;
+    const int halfHeight = initialHeight / 2;
 
-    ARenderWindow leftRender(mainWindow, 0, 0, initialSplit, initialHeight, EGraphicsBackend::Vulkan);
-    ARenderWindow rightRender(mainWindow, initialSplit, 0, initialWidth - initialSplit, initialHeight, EGraphicsBackend::OpenGL);
+    // 4 render windows: top-left OpenGL, top-right Vulkan, bottom-left DX11, bottom-right DX12.
+    ARenderWindow glRender(mainWindow, 0, 0, halfWidth, halfHeight, EGraphicsBackend::OpenGL);
+    ARenderWindow vkRender(mainWindow, halfWidth, 0, initialWidth - halfWidth, halfHeight, EGraphicsBackend::Vulkan);
+    ARenderWindow dx11Render(mainWindow, 0, halfHeight, halfWidth, initialHeight - halfHeight, EGraphicsBackend::DirectX11);
+    ARenderWindow dx12Render(mainWindow, halfWidth, halfHeight, initialWidth - halfWidth, initialHeight - halfHeight, EGraphicsBackend::DirectX12);
 
-    AViewport& viewportLeft = leftRender.getViewport();
-    AViewport& viewportRight = rightRender.getViewport();
+    AViewport& viewportGL = glRender.getViewport();
+    AViewport& viewportVK = vkRender.getViewport();
+    AViewport& viewportDX11 = dx11Render.getViewport();
+    AViewport& viewportDX12 = dx12Render.getViewport();
 
     // World
     AWorld world;
-    viewportLeft.setWorld(world);
-    viewportRight.setWorld(world);
+    viewportGL.setWorld(world);
+    viewportVK.setWorld(world);
+    viewportDX11.setWorld(world);
+    viewportDX12.setWorld(world);
 
     AEntity* e1 = AEntity::createTriangle(glm::vec3(0,0,0), glm::vec3(5, 0, 0), glm::vec3(0, 0, 5));
     AEntity* e2 = AEntity::createRectangle(20, 10);
@@ -39,12 +47,14 @@ int main(int argc, char* argv[])
     });
     e2->setColor({0.76f, 0.70f, 0.50f, 1.0f}); // Sand tone
 
-    world.addEntity(e2);
     world.addEntity(e1);
+    world.addEntity(e2);
 
     // Controls
-    AFreeCamera camera(viewportLeft, glm::vec3(0, 0, 30), glm::vec3(0, 0, 0)); // Viewport, Position, Lookat
-    camera.addViewport(viewportRight);
+    AFreeCamera camera(viewportGL, glm::vec3(0, 0, 30), glm::vec3(0, 0, 0)); // Viewport, Position, Lookat
+    camera.addViewport(viewportVK);
+    camera.addViewport(viewportDX11);
+    camera.addViewport(viewportDX12);
     bool cursorCaptured = true;
     mainWindow.setCursorGrabbed(cursorCaptured);
     camera.setInputEnabled(cursorCaptured);
@@ -59,9 +69,12 @@ int main(int argc, char* argv[])
         }
         lastLayoutWidth = w;
         lastLayoutHeight = h;
-        const int split = std::max(1, w / 2);
-        leftRender.setRect(0, 0, split, h);
-        rightRender.setRect(split, 0, w - split, h);
+        const int halfW = std::max(1, w / 2);
+        const int halfH = std::max(1, h / 2);
+        glRender.setRect(0, 0, halfW, halfH);
+        vkRender.setRect(halfW, 0, w - halfW, halfH);
+        dx11Render.setRect(0, halfH, halfW, h - halfH);
+        dx12Render.setRect(halfW, halfH, w - halfW, h - halfH);
         return true;
     };
     if (updateViewportLayout()) {
@@ -93,19 +106,29 @@ int main(int argc, char* argv[])
                 }
                 else if (keyPressed->scancode == EEventKey::Scancode::O)
                 {
-                    // Swap the backends between the two render windows for side-by-side comparison.
-                    EGraphicsBackend leftBackend = leftRender.getGraphicsBackend();
-                    EGraphicsBackend rightBackend = rightRender.getGraphicsBackend();
-                    leftRender.setGraphicsBackend(rightBackend);
-                    rightRender.setGraphicsBackend(leftBackend);
+                    auto nextBackend = [](EGraphicsBackend b) {
+                        switch (b) {
+                        case EGraphicsBackend::OpenGL: return EGraphicsBackend::Vulkan;
+                        case EGraphicsBackend::Vulkan: return EGraphicsBackend::DirectX11;
+                        case EGraphicsBackend::DirectX11: return EGraphicsBackend::DirectX12;
+                        case EGraphicsBackend::DirectX12: return EGraphicsBackend::OpenGL;
+                        default: return EGraphicsBackend::OpenGL;
+                        }
+                    };
+                    glRender.setGraphicsBackend(nextBackend(glRender.getGraphicsBackend()));
+                    vkRender.setGraphicsBackend(nextBackend(vkRender.getGraphicsBackend()));
+                    dx11Render.setGraphicsBackend(nextBackend(dx11Render.getGraphicsBackend()));
+                    dx12Render.setGraphicsBackend(nextBackend(dx12Render.getGraphicsBackend()));
                 }
             }
 
             camera.dispatchEvent(event);
         }
 
-        leftRender.display();
-        rightRender.display();
+        glRender.display();
+        vkRender.display();
+        dx11Render.display();
+        dx12Render.display();
     }
 
     return 0;
