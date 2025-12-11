@@ -1,34 +1,31 @@
-// Public render window that owns the viewport, renderer backend, and event pump.
+// Render window that couples a platform window with a rendering backend and a default viewport.
 #pragma once
 
+#include <AWindow>
+#include <AViewport>
+#include <EGraphicsBackend>
 #include <memory>
 #include <string>
-#include <vector>
 
-#include <AViewport>
-#include <AEvent>
-#include <EGraphicsBackend>
-
-class ARenderWindow {
+class ARenderWindow : public AWindow {
 public:
+    // Standalone top-level render window.
     ARenderWindow(const std::string& title, int width, int height, EGraphicsBackend backend);
+    // Child render window attached to a parent platform window.
+    ARenderWindow(AWindow& parent, int x, int y, int width, int height, EGraphicsBackend backend);
     ~ARenderWindow();
 
-    bool isOpen() const;
-    void close();
-
-    std::vector<std::shared_ptr<AEvent>> pollEvents();
     void display();
 
     void setGraphicsBackend(EGraphicsBackend backend);
     EGraphicsBackend getGraphicsBackend() const;
 
-    AViewport& getViewport();
+    AViewport& getViewport(); // default viewport covering the whole render window
 
-    void setCursorGrabbed(bool grabbed);
-    bool isCursorGrabbed() const;
+    // Convenience to move/resize the render window when used as a child.
+    void setRect(int x, int y, int width, int height);
 
 private:
     class Impl;
-    std::unique_ptr<Impl> impl_;
+    std::unique_ptr<Impl> renderImpl_;
 };

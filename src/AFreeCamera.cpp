@@ -5,7 +5,8 @@
 #include <iostream>
 
 AFreeCamera::AFreeCamera(AViewport& viewport, const glm::vec3& position, const glm::vec3& lookAt)
-    : viewport_(viewport), position_(position) {
+    : position_(position) {
+    viewports_.push_back(&viewport);
     forward_ = glm::normalize(lookAt - position_);
     yaw_ = std::atan2(forward_.y, forward_.x);
     pitch_ = std::asin(forward_.z);
@@ -28,6 +29,15 @@ void AFreeCamera::dispatchEvent(const std::shared_ptr<AEvent>& event) {
     }
 }
 
+void AFreeCamera::addViewport(AViewport& viewport) {
+    viewports_.push_back(&viewport);
+    updateMatrices();
+}
+
+void AFreeCamera::refreshMatrices() {
+    updateMatrices();
+}
+
 const glm::vec3& AFreeCamera::getPosition() const {
     return position_;
 }
@@ -44,10 +54,16 @@ void AFreeCamera::updateMatrices() {
 
     const glm::vec3 focus = position_ + forward_;
     glm::mat4 view = glm::lookAt(position_, focus, up_);
-    glm::mat4 projection = glm::perspective(glm::radians(60.0f), viewport_.getAspectRatio(), 0.1f, 1000.0f);
 
-    viewport_.setViewMatrix(view);
-    viewport_.setProjectionMatrix(projection);
+    for (auto* viewport : viewports_) {
+        if (!viewport) {
+            continue;
+        }
+        const float aspect = viewport->getAspectRatio();
+        glm::mat4 projection = glm::perspective(glm::radians(60.0f), aspect, 0.1f, 1000.0f);
+        viewport->setViewMatrix(view);
+        viewport->setProjectionMatrix(projection);
+    }
 
     // Simple runtime feedback to verify camera controls.
     const float yawDeg = glm::degrees(yaw_);

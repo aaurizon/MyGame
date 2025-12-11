@@ -1,7 +1,8 @@
 #include <AViewport>
 #include <AWorld>
 
-AViewport::AViewport(int width, int height) : width_(width), height_(height) {}
+AViewport::AViewport(int width, int height, int x, int y)
+    : x_(x), y_(y), width_(width), height_(height) {}
 
 void AViewport::setWorld(AWorld& world) {
     world_ = &world;
@@ -11,9 +12,29 @@ AWorld* AViewport::getWorld() const {
     return world_;
 }
 
+void AViewport::setRect(int x, int y, int width, int height) {
+    x_ = x;
+    y_ = y;
+    width_ = width;
+    height_ = height;
+}
+
 void AViewport::setSize(int width, int height) {
     width_ = width;
     height_ = height;
+}
+
+void AViewport::setPosition(int x, int y) {
+    x_ = x;
+    y_ = y;
+}
+
+int AViewport::getX() const {
+    return x_;
+}
+
+int AViewport::getY() const {
+    return y_;
 }
 
 int AViewport::getWidth() const {

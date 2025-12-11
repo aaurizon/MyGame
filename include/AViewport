@@ -1,4 +1,4 @@
-// Viewport couples the render window size to the world and active camera matrices.
+// Viewport couples the render window area to the world and active camera matrices.
 #pragma once
 
 #include <glm/glm.hpp>
@@ -7,12 +7,16 @@ class AWorld;
 
 class AViewport {
 public:
-    AViewport(int width, int height);
+    AViewport(int width, int height, int x = 0, int y = 0);
 
     void setWorld(AWorld& world);
     AWorld* getWorld() const;
 
+    void setRect(int x, int y, int width, int height);
     void setSize(int width, int height);
+    void setPosition(int x, int y);
+    int getX() const;
+    int getY() const;
     int getWidth() const;
     int getHeight() const;
     float getAspectRatio() const;
@@ -25,6 +29,8 @@ public:
 
 private:
     AWorld* world_{nullptr};
+    int x_{0};
+    int y_{0};
     int width_{1};
     int height_{1};
     glm::mat4 view_{1.0f};

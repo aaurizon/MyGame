@@ -1,4 +1,6 @@
 #include <glm/glm.hpp>
+#include <algorithm>
+#include <AWindow>
 #include <ARenderWindow>
 #include <AViewport>
 #include <AWorld>
@@ -9,13 +11,22 @@
 
 int main(int argc, char* argv[])
 {
-    // Initialize
-    ARenderWindow window("MyGame v1.0.0", 800, 600, EGraphicsBackend::Vulkan);
-    AViewport& viewport = window.getViewport();
+    // Initialize: parent window + two child render windows (Vulkan on left, OpenGL on right).
+    AWindow mainWindow("MyGame v1.0.0", 1200, 600);
+    const int initialWidth = mainWindow.getWidth();
+    const int initialHeight = mainWindow.getHeight();
+    const int initialSplit = initialWidth / 2;
+
+    ARenderWindow leftRender(mainWindow, 0, 0, initialSplit, initialHeight, EGraphicsBackend::Vulkan);
+    ARenderWindow rightRender(mainWindow, initialSplit, 0, initialWidth - initialSplit, initialHeight, EGraphicsBackend::OpenGL);
+
+    AViewport& viewportLeft = leftRender.getViewport();
+    AViewport& viewportRight = rightRender.getViewport();
 
     // World
     AWorld world;
-    viewport.setWorld(world);
+    viewportLeft.setWorld(world);
+    viewportRight.setWorld(world);
 
     AEntity* e1 = AEntity::createTriangle(glm::vec3(0,0,0), glm::vec3(5, 0, 0), glm::vec3(0, 0, 5));
     AEntity* e2 = AEntity::createRectangle(20, 10);
@@ -28,49 +39,73 @@ int main(int argc, char* argv[])
     });
     e2->setColor({0.76f, 0.70f, 0.50f, 1.0f}); // Sand tone
 
-    world.addEntity(e1);
     world.addEntity(e2);
+    world.addEntity(e1);
 
     // Controls
-    AFreeCamera camera(viewport, glm::vec3(0, 0, 30), glm::vec3(0, 0, 0)); // Viewport, Position, Lookat
+    AFreeCamera camera(viewportLeft, glm::vec3(0, 0, 30), glm::vec3(0, 0, 0)); // Viewport, Position, Lookat
+    camera.addViewport(viewportRight);
     bool cursorCaptured = true;
-    window.setCursorGrabbed(cursorCaptured);
+    mainWindow.setCursorGrabbed(cursorCaptured);
     camera.setInputEnabled(cursorCaptured);
 
+    int lastLayoutWidth = -1;
+    int lastLayoutHeight = -1;
+    auto updateViewportLayout = [&]() -> bool {
+        const int w = mainWindow.getWidth();
+        const int h = mainWindow.getHeight();
+        if (w == lastLayoutWidth && h == lastLayoutHeight) {
+            return false;
+        }
+        lastLayoutWidth = w;
+        lastLayoutHeight = h;
+        const int split = std::max(1, w / 2);
+        leftRender.setRect(0, 0, split, h);
+        rightRender.setRect(split, 0, w - split, h);
+        return true;
+    };
+    if (updateViewportLayout()) {
+        camera.refreshMatrices();
+    }
+
     // Process
-    while (window.isOpen())
+    while (mainWindow.isOpen())
     {
-        for (auto event : window.pollEvents())
+        if (updateViewportLayout()) {
+            camera.refreshMatrices();
+        }
+
+        for (auto event : mainWindow.pollEvents())
         {
             if (event->is<AEvent::Closed>())
             {
-                window.close();
+                mainWindow.close();
             }
             else if (const auto* keyPressed = event->getIf<AEvent::KeyPressed>())
             {
                 if (keyPressed->scancode == EEventKey::Scancode::Escape)
-                    window.close();
+                    mainWindow.close();
                 else if (keyPressed->scancode == EEventKey::Scancode::P)
                 {
                     cursorCaptured = !cursorCaptured;
-                    window.setCursorGrabbed(cursorCaptured);
+                    mainWindow.setCursorGrabbed(cursorCaptured);
                     camera.setInputEnabled(cursorCaptured);
                 }
                 else if (keyPressed->scancode == EEventKey::Scancode::O)
                 {
-                    // Cycle through graphics backends.
-                    EGraphicsBackend current = window.getGraphicsBackend();
-                    EGraphicsBackend next = (current == EGraphicsBackend::Vulkan)
-                        ? EGraphicsBackend::OpenGL
-                        : EGraphicsBackend::Vulkan;
-                    window.setGraphicsBackend(next);
+                    // Swap the backends between the two render windows for side-by-side comparison.
+                    EGraphicsBackend leftBackend = leftRender.getGraphicsBackend();
+                    EGraphicsBackend rightBackend = rightRender.getGraphicsBackend();
+                    leftRender.setGraphicsBackend(rightBackend);
+                    rightRender.setGraphicsBackend(leftBackend);
                 }
             }
 
             camera.dispatchEvent(event);
         }
 
-        window.display();
+        leftRender.display();
+        rightRender.display();
     }
 
     return 0;

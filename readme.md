@@ -7,7 +7,7 @@
 3. Build: `cmake --build build`
 4. Run: `./build/MyGame` (from the repo root). Use `WASD`/arrow keys to move the camera and the mouse to look around. Press `Esc` to close the window.
 
-The engine targets Windows/Win32 today with OpenGL and a placeholder Vulkan backend; the backend can be switched at runtime through `ARenderWindow::setGraphicsBackend`.
+The engine targets Windows/Win32 today with OpenGL and a placeholder Vulkan backend; each render window (child or standalone) can pick its backend at runtime through `ARenderWindow::setGraphicsBackend`.
 
 ## MinGW
 
@@ -74,8 +74,6 @@ Not required for normal development.
 Tools for building Vulkan applications targeting ARM64.  
 Not needed when developing only for Windows x64.  
 **Use: No (unless targeting ARM64)**
-
-
 
 
 

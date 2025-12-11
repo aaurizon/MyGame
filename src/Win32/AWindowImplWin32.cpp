@@ -7,6 +7,8 @@
 
 namespace {
 
+constexpr const char* kMainWindowClass = "AWindowClass";
+
 EEventKey::Scancode mapVirtualKey(WPARAM wParam) {
     switch (wParam) {
     case VK_ESCAPE: return EEventKey::Scancode::Escape;
@@ -55,9 +57,10 @@ AWindowImplWin32::~AWindowImplWin32() {
     close();
 }
 
-bool AWindowImplWin32::create(const std::string& title, int width, int height) {
+bool AWindowImplWin32::create(const std::string& title, int width, int height, void* parentHandle, int x, int y, bool child) {
     width_ = width;
     height_ = height;
+    child_ = child;
 
     HINSTANCE instance = GetModuleHandleA(nullptr);
 
@@ -67,7 +70,7 @@ bool AWindowImplWin32::create(const std::string& title, int width, int height) {
         wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
         wc.lpfnWndProc = &AWindowImplWin32::WndProc;
         wc.hInstance = instance;
-        wc.lpszClassName = "AWindowClass";
+        wc.lpszClassName = kMainWindowClass;
         wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
         if (!RegisterClassA(&wc)) {
             return false;
@@ -75,14 +78,19 @@ bool AWindowImplWin32::create(const std::string& title, int width, int height) {
         registered = true;
     }
 
+    DWORD style = child ? (WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_DISABLED) : (WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN);
+    HWND parentHwnd = static_cast<HWND>(parentHandle);
+    int posX = child ? x : CW_USEDEFAULT;
+    int posY = child ? y : CW_USEDEFAULT;
+
     hwnd_ = CreateWindowExA(
-        0,
-        "AWindowClass",
+        child ? WS_EX_NOPARENTNOTIFY : 0,
+        kMainWindowClass,
         title.c_str(),
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
+        style,
+        posX, posY,
         width_, height_,
-        nullptr,
+        parentHwnd,
         nullptr,
         instance,
         this);
@@ -113,7 +121,7 @@ std::vector<std::shared_ptr<AEvent>> AWindowImplWin32::pollEvents() {
     events_.clear();
 
     MSG msg{};
-    while (PeekMessage(&msg, hwnd_, 0, 0, PM_REMOVE)) {
+    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -139,6 +147,15 @@ void AWindowImplWin32::setTitle(const std::string& title) {
     if (hwnd_) {
         SetWindowTextA(hwnd_, title.c_str());
     }
+}
+
+void AWindowImplWin32::setRect(int x, int y, int width, int height) {
+    if (!hwnd_) {
+        return;
+    }
+    SetWindowPos(hwnd_, nullptr, x, y, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+    width_ = width;
+    height_ = height;
 }
 
 void AWindowImplWin32::setCursorGrabbed(bool grabbed) {
@@ -193,7 +210,9 @@ LRESULT CALLBACK AWindowImplWin32::WndProc(HWND hwnd, UINT msg, WPARAM wParam, L
     }
     case WM_DESTROY:
         self->open_ = false;
-        PostQuitMessage(0);
+        if (!self->child_) {
+            PostQuitMessage(0);
+        }
         return 0;
     case WM_SIZE:
         self->handleSizeChange(lParam);

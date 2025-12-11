@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(VULKAN_SDK_ROOT "C:/VulkanSDK/1.4.335.0")
 
 set(ENGINE_SOURCES
+    src/AWindow.cpp
     src/ARenderWindow.cpp
     src/AViewport.cpp
     src/AWorld.cpp

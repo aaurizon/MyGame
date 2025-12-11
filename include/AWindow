@@ -1,13 +1,33 @@
-// Base window abstraction kept for API completeness. Concrete rendering behavior lives in ARenderWindow.
+// Base window abstraction that owns a platform window and an event pump.
 #pragma once
 
+#include <AEvent>
+#include <memory>
 #include <string>
+#include <vector>
+
+class IWindowImpl;
 
 class AWindow {
 public:
-    virtual ~AWindow() = default;
+    AWindow(const std::string& title, int width, int height);
+    virtual ~AWindow();
 
-    virtual bool isOpen() const = 0;
-    virtual void close() = 0;
-    virtual void setTitle(const std::string& title) = 0;
+    bool isOpen() const;
+    virtual void close();
+    virtual void setTitle(const std::string& title);
+
+    std::vector<std::shared_ptr<AEvent>> pollEvents();
+
+    void setCursorGrabbed(bool grabbed);
+    bool isCursorGrabbed() const;
+
+    int getWidth() const;
+    int getHeight() const;
+    void* getNativeHandle() const;
+    void setRect(int x, int y, int width, int height);
+
+protected:
+    AWindow(const std::string& title, int width, int height, void* parentHandle, int x, int y, bool child);
+    std::unique_ptr<IWindowImpl> impl_;
 };

@@ -3,17 +3,29 @@
 #include <Graphics/IRendererImpl.h>
 #include <Graphics/OpenGL/OpenGLRenderer.h>
 #include <Graphics/Vulkan/VulkanRenderer.h>
-#include <Win32/AWindowImplWin32.h>
 #include <cassert>
+
+namespace {
+
+std::unique_ptr<IRendererImpl> createRenderer(EGraphicsBackend backend) {
+    switch (backend) {
+    case EGraphicsBackend::OpenGL:
+        return std::make_unique<OpenGLRenderer>();
+    case EGraphicsBackend::Vulkan:
+        return std::make_unique<VulkanRenderer>();
+    default:
+        return std::make_unique<OpenGLRenderer>();
+    }
+}
+
+} // namespace
 
 class ARenderWindow::Impl {
 public:
-    Impl(const std::string& title, int width, int height, EGraphicsBackend backend)
-        : viewport(width, height), backend_(backend) {
-        window_ = std::make_unique<AWindowImplWin32>();
-        const bool created = window_->create(title, width, height);
-        assert(created && "Failed to create Win32 window");
-        recreateRenderer(backend_);
+    Impl(int width, int height, EGraphicsBackend backend, ARenderWindow& owner)
+        : viewport_(width, height, 0, 0), backend_(backend), owner_(owner) {
+        // Base AWindow already created the platform window; we only need a renderer.
+        recreateRenderer(owner_.getNativeHandle(), width, height);
     }
 
     ~Impl() {
@@ -22,99 +34,82 @@ public:
         }
     }
 
-    bool isOpen() const { return window_->isOpen(); }
-
-    void close() { window_->close(); }
-
-    std::vector<std::shared_ptr<AEvent>> pollEvents() {
-        return window_->pollEvents();
-    }
-
     void display() {
         if (!renderer_) {
             return;
         }
 
-        viewport.setSize(window_->getWidth(), window_->getHeight());
-        renderer_->setWorld(viewport.getWorld());
-        renderer_->draw(viewport);
+        // Keep viewport in sync with the window client size.
+        const int w = owner_.getWidth();
+        const int h = owner_.getHeight();
+        if (w != lastWidth_ || h != lastHeight_) {
+            viewport_.setRect(0, 0, w, h);
+            renderer_->resize(w, h);
+            lastWidth_ = w;
+            lastHeight_ = h;
+        }
+
+        renderer_->setWorld(viewport_.getWorld());
+        renderer_->draw(viewport_);
     }
 
     void setGraphicsBackend(EGraphicsBackend backend) {
         if (backend_ == backend) {
             return;
         }
+        backend_ = backend;
         if (renderer_) {
             renderer_->shutdown();
-            renderer_.reset();
         }
-        backend_ = backend;
-        recreateRenderer(backend_);
+        renderer_.reset();
+        recreateRenderer(owner_.getNativeHandle(), owner_.getWidth(), owner_.getHeight());
     }
 
-    EGraphicsBackend getGraphicsBackend() const {
-        return backend_;
-    }
-
-    AViewport& getViewport() { return viewport; }
-
-    void setCursorGrabbed(bool grabbed) {
-        if (window_) {
-            window_->setCursorGrabbed(grabbed);
-        }
-    }
-
-    bool isCursorGrabbed() const {
-        if (window_) {
-            return window_->isCursorGrabbed();
-        }
-        return false;
-    }
+    EGraphicsBackend getGraphicsBackend() const { return backend_; }
+    AViewport& getViewport() { return viewport_; }
 
 private:
-    void recreateRenderer(EGraphicsBackend backend) {
-        switch (backend) {
-        case EGraphicsBackend::OpenGL:
-            renderer_ = std::make_unique<OpenGLRenderer>();
-            break;
-        case EGraphicsBackend::Vulkan:
-            renderer_ = std::make_unique<VulkanRenderer>();
-            break;
-        default:
-            renderer_ = std::make_unique<OpenGLRenderer>();
-            backend_ = EGraphicsBackend::OpenGL;
-            break;
+    void recreateRenderer(void* nativeHandle, int width, int height) {
+        renderer_ = createRenderer(backend_);
+        if (!renderer_->initialize(nativeHandle, width, height)) {
+            renderer_.reset();
+            return;
         }
-
-        renderer_->initialize(window_->getNativeHandle(), viewport.getWidth(), viewport.getHeight());
-        renderer_->setWorld(viewport.getWorld());
+        lastWidth_ = width;
+        lastHeight_ = height;
+        renderer_->setWorld(viewport_.getWorld());
     }
 
-    std::unique_ptr<IWindowImpl> window_;
+    AViewport viewport_;
     std::unique_ptr<IRendererImpl> renderer_;
-    AViewport viewport;
     EGraphicsBackend backend_;
+    int lastWidth_{0};
+    int lastHeight_{0};
+    ARenderWindow& owner_;
 };
 
 ARenderWindow::ARenderWindow(const std::string& title, int width, int height, EGraphicsBackend backend)
-    : impl_(std::make_unique<Impl>(title, width, height, backend)) {}
+    : AWindow(title, width, height) {
+    renderImpl_ = std::make_unique<Impl>(width, height, backend, *this);
+}
+
+ARenderWindow::ARenderWindow(AWindow& parent, int x, int y, int width, int height, EGraphicsBackend backend)
+    : AWindow("", width, height, parent.getNativeHandle(), x, y, true) {
+    renderImpl_ = std::make_unique<Impl>(width, height, backend, *this);
+}
 
 ARenderWindow::~ARenderWindow() = default;
 
-bool ARenderWindow::isOpen() const { return impl_->isOpen(); }
+void ARenderWindow::display() { renderImpl_->display(); }
 
-void ARenderWindow::close() { impl_->close(); }
+void ARenderWindow::setGraphicsBackend(EGraphicsBackend backend) { renderImpl_->setGraphicsBackend(backend); }
 
-std::vector<std::shared_ptr<AEvent>> ARenderWindow::pollEvents() { return impl_->pollEvents(); }
+EGraphicsBackend ARenderWindow::getGraphicsBackend() const { return renderImpl_->getGraphicsBackend(); }
 
-void ARenderWindow::display() { impl_->display(); }
+AViewport& ARenderWindow::getViewport() { return renderImpl_->getViewport(); }
 
-void ARenderWindow::setGraphicsBackend(EGraphicsBackend backend) { impl_->setGraphicsBackend(backend); }
-
-EGraphicsBackend ARenderWindow::getGraphicsBackend() const { return impl_->getGraphicsBackend(); }
-
-AViewport& ARenderWindow::getViewport() { return impl_->getViewport(); }
-
-void ARenderWindow::setCursorGrabbed(bool grabbed) { impl_->setCursorGrabbed(grabbed); }
-
-bool ARenderWindow::isCursorGrabbed() const { return impl_->isCursorGrabbed(); }
+void ARenderWindow::setRect(int x, int y, int width, int height) {
+    AWindow::setRect(x, y, width, height);
+    // Force resize on next display.
+    renderImpl_->getViewport().setRect(0, 0, width, height);
+}

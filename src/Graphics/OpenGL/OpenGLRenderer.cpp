@@ -86,8 +86,11 @@ void OpenGLRenderer::setupContext(HWND hwnd) {
     pfd.cStencilBits = 8;
     pfd.iLayerType = PFD_MAIN_PLANE;
 
-    int pixelFormat = ChoosePixelFormat(hdc_, &pfd);
-    SetPixelFormat(hdc_, pixelFormat, &pfd);
+    int pixelFormat = GetPixelFormat(hdc_);
+    if (pixelFormat == 0) {
+        pixelFormat = ChoosePixelFormat(hdc_, &pfd);
+        SetPixelFormat(hdc_, pixelFormat, &pfd);
+    }
 
     hglrc_ = wglCreateContext(hdc_);
     wglMakeCurrent(hdc_, hglrc_);

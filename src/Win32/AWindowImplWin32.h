@@ -15,7 +15,7 @@ public:
     AWindowImplWin32();
     ~AWindowImplWin32() override;
 
-    bool create(const std::string& title, int width, int height) override;
+    bool create(const std::string& title, int width, int height, void* parentHandle, int x, int y, bool child) override;
     void close() override;
     bool isOpen() const override;
 
@@ -25,6 +25,7 @@ public:
     int getWidth() const override;
     int getHeight() const override;
     void setTitle(const std::string& title) override;
+    void setRect(int x, int y, int width, int height) override;
     void setCursorGrabbed(bool grabbed) override;
     bool isCursorGrabbed() const override;
 
@@ -35,6 +36,7 @@ private:
     void centerCursor();
 
     HWND hwnd_{nullptr};
+    bool child_{false};
     bool open_{false};
     bool cursorGrabbed_{false};
     int width_{0};

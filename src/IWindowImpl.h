@@ -9,7 +9,7 @@ class IWindowImpl {
 public:
     virtual ~IWindowImpl() = default;
 
-    virtual bool create(const std::string& title, int width, int height) = 0;
+    virtual bool create(const std::string& title, int width, int height, void* parentHandle, int x, int y, bool child) = 0;
     virtual void close() = 0;
     virtual bool isOpen() const = 0;
 
@@ -19,6 +19,8 @@ public:
     virtual int getWidth() const = 0;
     virtual int getHeight() const = 0;
     virtual void setTitle(const std::string& title) = 0;
+
+    virtual void setRect(int x, int y, int width, int height) = 0;
 
     virtual void setCursorGrabbed(bool grabbed) = 0;
     virtual bool isCursorGrabbed() const = 0;
