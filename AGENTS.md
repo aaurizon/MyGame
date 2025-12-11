@@ -15,8 +15,9 @@
 ## Coding Style & Naming Conventions
 - Formatting: `.editorconfig` enforces LF endings, 4-space indentation, no tabs; `.clang-format` sets 4-space indent, 120 column limit, brace-wrapping after control statements/classes/namespaces.
 - Linting: `.clang-tidy` is enabled with warnings-as-errors; preferred cases—classes `CamelCase`, functions/variables `camelBack`, member fields prefixed `m_`.
-- Headers: include engine headers with angle brackets (e.g., `<AWindow>`, `<ARenderOverlay>`); keep includes sorted per clang-format.
-- Classes in the engine typically start with `A` to signal engine-owned types—use the same pattern for new classes.
+- Naming: engine types start with `A` (e.g., `AWindow`, `ARenderOverlay`); interfaces start with `I` (e.g., `IWindowImpl`, `IRendererImpl`); enums start with `E` (e.g., `EGraphicsBackend`).
+- Headers: include engine headers with angle brackets and no extension (e.g., `<AWindow>`, `<ARenderOverlay>`); keep includes sorted per clang-format. Source-local headers in `src/` use `.hpp` when present; template fragments use `.tpl` included from headers.
+- Platform impls live under platform folders (e.g., `Win32/`) behind an `*Impl` interface; avoid direct platform calls elsewhere.
 
 ## Testing Guidelines
 - No automated tests yet. Validate locally by running `./build/MyGame` and checking: window opens, four viewports render, backend cycling (`O`) works, resize keeps layout, and `Esc` closes cleanly.
