@@ -11,6 +11,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -35,23 +36,77 @@ bool projectToScreen(const glm::vec3& world, const glm::mat4& view, const glm::m
     return true;
 }
 
+struct ResolvedText {
+    std::string text;
+    int x{0};
+    int y{0};
+    bool alignRight{false};
+    int pixelHeight{16};
+    AEntity::Color color{};
+};
+
+std::vector<ResolvedText> collectTexts(const AViewport& viewport) {
+    std::vector<ResolvedText> out;
+
+    auto appendScreenText = [&](const AText& text) {
+        out.push_back(ResolvedText{
+            text.getText(),
+            text.getPosition().x,
+            text.getPosition().y,
+            text.isAlignRight(),
+            text.getPixelHeight(),
+            text.getColor()
+        });
+    };
+
+    auto appendFloatingText = [&](const AFloatingText& text) {
+        POINT screen{};
+        if (!projectToScreen(text.getWorldPosition(), viewport.getViewMatrix(), viewport.getProjectionMatrix(), viewport.getWidth(), viewport.getHeight(), screen)) {
+            return;
+        }
+        out.push_back(ResolvedText{
+            text.getText(),
+            screen.x,
+            screen.y,
+            false,
+            text.getPixelHeight(),
+            text.getColor()
+        });
+    };
+
+    for (const auto* overlay : viewport.getOverlays()) {
+        if (!overlay) {
+            continue;
+        }
+        for (const auto& text : overlay->getTexts()) {
+            appendScreenText(text);
+        }
+        for (const auto& floating : overlay->getFloatingTexts()) {
+            appendFloatingText(floating);
+        }
+    }
+
+    if (auto* world = viewport.getWorld()) {
+        for (const auto& floating : world->getFloatingTexts()) {
+            appendFloatingText(*floating);
+        }
+    }
+
+    return out;
+}
+
 void drawOverlayText(HDC dc, const AViewport& viewport) {
-    const auto& overlays = viewport.getOverlayTexts();
-    if (overlays.empty() || !dc) {
+    if (!dc) {
+        return;
+    }
+    const auto resolved = collectTexts(viewport);
+    if (resolved.empty()) {
         return;
     }
 
     SetBkMode(dc, TRANSPARENT);
 
-    for (const auto& overlay : overlays) {
-        POINT screen{};
-        if (overlay.screenSpace) {
-            screen.x = overlay.screenPosition.x;
-            screen.y = overlay.screenPosition.y;
-        } else if (!projectToScreen(overlay.worldPosition, viewport.getViewMatrix(), viewport.getProjectionMatrix(), viewport.getWidth(), viewport.getHeight(), screen)) {
-            continue;
-        }
-
+    for (const auto& overlay : resolved) {
         HFONT font = CreateFontA(
             -overlay.pixelHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
@@ -65,11 +120,8 @@ void drawOverlayText(HDC dc, const AViewport& viewport) {
 
         SIZE extent{};
         GetTextExtentPoint32A(dc, overlay.text.c_str(), static_cast<int>(overlay.text.size()), &extent);
-        int x = screen.x;
-        if (overlay.alignRight) {
-            x -= extent.cx;
-        }
-        TextOutA(dc, x, screen.y, overlay.text.c_str(), static_cast<int>(overlay.text.size()));
+        int x = overlay.alignRight ? (viewport.getWidth() - overlay.x - extent.cx) : overlay.x;
+        TextOutA(dc, x, overlay.y, overlay.text.c_str(), static_cast<int>(overlay.text.size()));
 
         if (font) {
             SelectObject(dc, oldFont);

@@ -2,7 +2,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
-#include <ATextOverlay>
+#include <Overlay>
 #include <vector>
 
 class AWorld;
@@ -28,8 +28,10 @@ public:
 
     const glm::mat4& getViewMatrix() const;
     const glm::mat4& getProjectionMatrix() const;
-    void setOverlayTexts(const std::vector<ATextOverlay>& overlays);
-    const std::vector<ATextOverlay>& getOverlayTexts() const;
+    void addOverlay(Overlay& overlay);
+    void removeOverlay(Overlay& overlay);
+    void clearOverlays();
+    const std::vector<Overlay*>& getOverlays() const;
 
 private:
     AWorld* world_{nullptr};
@@ -39,5 +41,5 @@ private:
     int height_{1};
     glm::mat4 view_{1.0f};
     glm::mat4 projection_{1.0f};
-    std::vector<ATextOverlay> overlays_;
+    std::vector<Overlay*> overlays_;
 };

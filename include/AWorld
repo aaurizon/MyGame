@@ -2,6 +2,7 @@
 #pragma once
 
 #include <AEntity>
+#include <AFloatingText>
 #include <memory>
 #include <vector>
 
@@ -14,6 +15,11 @@ public:
     void addEntity(AEntity* entity);
     const std::vector<std::unique_ptr<AEntity>>& getEntities() const;
 
+    // Floating texts anchored in world space (e.g., nametags).
+    void addFloatingText(AFloatingText* text);
+    const std::vector<std::unique_ptr<AFloatingText>>& getFloatingTexts() const;
+
 private:
     std::vector<std::unique_ptr<AEntity>> entities_;
+    std::vector<std::unique_ptr<AFloatingText>> floatingTexts_;
 };

@@ -11,7 +11,9 @@
 #include <AEntity>
 #include <AFreeCamera>
 #include <AEvent>
-#include <ATextOverlay>
+#include <AText>
+#include <AFloatingText>
+#include <Overlay>
 #include <EEventKey>
 
 int main(int argc, char* argv[])
@@ -44,16 +46,6 @@ int main(int argc, char* argv[])
     AEntity* e1 = AEntity::createTriangle(glm::vec3(0,0,0), glm::vec3(5, 0, 0), glm::vec3(0, 0, 5));
     AEntity* e2 = AEntity::createRectangle(20, 10);
 
-    const auto& triVerts = e1->getVertices();
-    glm::vec3 triCentroid{0.0f};
-    for (const auto& v : triVerts) {
-        triCentroid += v;
-    }
-    if (!triVerts.empty()) {
-        triCentroid /= static_cast<float>(triVerts.size());
-    }
-    const glm::vec3 triLabelPos = triCentroid + glm::vec3(0.0f, 1.5f, 0.0f);
-
     // Color setup: triangle with primary vertex colors (RGB), rectangle with sand-like color.
     e1->setVertexColors({
         {1.0f, 0.0f, 0.0f, 1.0f}, // Red
@@ -73,6 +65,27 @@ int main(int argc, char* argv[])
     bool cursorCaptured = true;
     mainWindow.setCursorGrabbed(cursorCaptured);
     camera.setInputEnabled(cursorCaptured);
+
+    // Overlays and floating texts.
+    Overlay hudOverlay;
+    AText& fpsText = hudOverlay.addText(AText("FPS: 0.0", {12, 12}, true, 16, {0.9f, 0.9f, 0.9f, 1.0f}));
+
+    const auto& triVerts = e1->getVertices();
+    glm::vec3 triCentroid{0.0f};
+    for (const auto& v : triVerts) {
+        triCentroid += v;
+    }
+    if (!triVerts.empty()) {
+        triCentroid /= static_cast<float>(triVerts.size());
+    }
+    const glm::vec3 triLabelPos = triCentroid + glm::vec3(0.0f, 1.5f, 0.0f);
+    AFloatingText* triangleLabel = new AFloatingText("Hello world!", triLabelPos, 18);
+    world.addFloatingText(triangleLabel);
+
+    viewportGL.addOverlay(hudOverlay);
+    viewportVK.addOverlay(hudOverlay);
+    viewportDX11.addOverlay(hudOverlay);
+    viewportDX12.addOverlay(hudOverlay);
 
     using Clock = std::chrono::steady_clock;
     auto lastFrameTime = Clock::now();
@@ -157,20 +170,9 @@ int main(int argc, char* argv[])
             camera.dispatchEvent(event);
         }
 
-        char fpsText[32];
-        std::snprintf(fpsText, sizeof(fpsText), "FPS: %.1f", fps);
-        auto applyOverlay = [&](AViewport& viewport) {
-            std::vector<ATextOverlay> overlays;
-            overlays.push_back(ATextOverlay::worldLabel("Hello world!", triLabelPos, 18));
-            const int margin = 12;
-            overlays.push_back(ATextOverlay::screenLabel(fpsText, viewport.getWidth() - margin, margin, true, 16, {0.9f, 0.9f, 0.9f, 1.0f}));
-            viewport.setOverlayTexts(overlays);
-        };
-
-        applyOverlay(viewportGL);
-        applyOverlay(viewportVK);
-        applyOverlay(viewportDX11);
-        applyOverlay(viewportDX12);
+        char fpsBuffer[32];
+        std::snprintf(fpsBuffer, sizeof(fpsBuffer), "FPS: %.1f", fps);
+        fpsText.setText(fpsBuffer);
 
         glRender.display();
         vkRender.display();

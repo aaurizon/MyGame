@@ -1,0 +1,35 @@
+// 2D overlay text anchored in screen space.
+#pragma once
+
+#include <AEntity>
+#include <glm/glm.hpp>
+#include <string>
+
+class AText {
+public:
+    AText() = default;
+    AText(std::string value, glm::ivec2 pos, bool alignRight = false, int height = 16, const AEntity::Color& c = {1.0f, 1.0f, 1.0f, 1.0f})
+        : text_(std::move(value)), position_(pos), alignRight_(alignRight), pixelHeight_(height), color_(c) {}
+
+    const std::string& getText() const { return text_; }
+    void setText(const std::string& value) { text_ = value; }
+
+    const glm::ivec2& getPosition() const { return position_; }
+    void setPosition(const glm::ivec2& pos) { position_ = pos; }
+
+    bool isAlignRight() const { return alignRight_; }
+    void setAlignRight(bool alignRight) { alignRight_ = alignRight; }
+
+    int getPixelHeight() const { return pixelHeight_; }
+    void setPixelHeight(int h) { pixelHeight_ = h; }
+
+    const AEntity::Color& getColor() const { return color_; }
+    void setColor(const AEntity::Color& c) { color_ = c; }
+
+private:
+    std::string text_;
+    glm::ivec2 position_{0, 0};
+    bool alignRight_{false};
+    int pixelHeight_{16};
+    AEntity::Color color_{1.0f, 1.0f, 1.0f, 1.0f};
+};

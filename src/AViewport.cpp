@@ -1,5 +1,6 @@
 #include <AViewport>
 #include <AWorld>
+#include <algorithm>
 
 AViewport::AViewport(int width, int height, int x, int y)
     : x_(x), y_(y), width_(width), height_(height) {}
@@ -68,10 +69,18 @@ const glm::mat4& AViewport::getProjectionMatrix() const {
     return projection_;
 }
 
-void AViewport::setOverlayTexts(const std::vector<ATextOverlay>& overlays) {
-    overlays_ = overlays;
+void AViewport::addOverlay(Overlay& overlay) {
+    overlays_.push_back(&overlay);
 }
 
-const std::vector<ATextOverlay>& AViewport::getOverlayTexts() const {
+void AViewport::removeOverlay(Overlay& overlay) {
+    overlays_.erase(std::remove(overlays_.begin(), overlays_.end(), &overlay), overlays_.end());
+}
+
+void AViewport::clearOverlays() {
+    overlays_.clear();
+}
+
+const std::vector<Overlay*>& AViewport::getOverlays() const {
     return overlays_;
 }

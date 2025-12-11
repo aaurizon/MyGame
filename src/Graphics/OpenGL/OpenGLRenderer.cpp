@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cassert>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -220,8 +221,62 @@ void OpenGLRenderer::drawOverlayText(const AViewport& viewport) {
         return;
     }
 
-    const auto& overlays = viewport.getOverlayTexts();
-    if (overlays.empty()) {
+    struct ResolvedText {
+        std::string text;
+        int x{0};
+        int y{0};
+        bool alignRight{false};
+        int pixelHeight{16};
+        AEntity::Color color{};
+    };
+
+    std::vector<ResolvedText> resolved;
+
+    auto appendScreenText = [&](const AText& text) {
+        resolved.push_back(ResolvedText{
+            text.getText(),
+            text.getPosition().x,
+            text.getPosition().y,
+            text.isAlignRight(),
+            text.getPixelHeight(),
+            text.getColor()
+        });
+    };
+
+    auto appendFloatingText = [&](const AFloatingText& text) {
+        POINT screen{};
+        if (!projectToScreen(text.getWorldPosition(), viewport.getViewMatrix(), viewport.getProjectionMatrix(), width_, height_, screen)) {
+            return;
+        }
+        resolved.push_back(ResolvedText{
+            text.getText(),
+            screen.x,
+            screen.y,
+            false,
+            text.getPixelHeight(),
+            text.getColor()
+        });
+    };
+
+    for (const auto* overlay : viewport.getOverlays()) {
+        if (!overlay) {
+            continue;
+        }
+        for (const auto& text : overlay->getTexts()) {
+            appendScreenText(text);
+        }
+        for (const auto& floating : overlay->getFloatingTexts()) {
+            appendFloatingText(floating);
+        }
+    }
+
+    if (auto* world = viewport.getWorld()) {
+        for (const auto& floating : world->getFloatingTexts()) {
+            appendFloatingText(*floating);
+        }
+    }
+
+    if (resolved.empty()) {
         return;
     }
 
@@ -240,15 +295,7 @@ void OpenGLRenderer::drawOverlayText(const AViewport& viewport) {
     glPushMatrix();
     glLoadIdentity();
 
-    for (const auto& overlay : overlays) {
-        POINT screen{};
-        if (overlay.screenSpace) {
-            screen.x = overlay.screenPosition.x;
-            screen.y = overlay.screenPosition.y;
-        } else if (!projectToScreen(overlay.worldPosition, viewport.getViewMatrix(), viewport.getProjectionMatrix(), width_, height_, screen)) {
-            continue;
-        }
-
+    for (const auto& overlay : resolved) {
         HFONT fontHandle = nullptr;
         GLuint base = getFontBase(overlay.pixelHeight, fontHandle);
         if (base == 0 || !fontHandle) {
@@ -256,11 +303,8 @@ void OpenGLRenderer::drawOverlayText(const AViewport& viewport) {
         }
 
         int textWidth = measureTextWidth(overlay.text, fontHandle);
-        int x = screen.x;
-        if (overlay.alignRight) {
-            x -= textWidth;
-        }
-        int y = screen.y + overlay.pixelHeight; // baseline adjustment for top-left origin
+        int x = overlay.alignRight ? (width_ - overlay.x - textWidth) : overlay.x;
+        int y = overlay.y + overlay.pixelHeight; // baseline adjustment for top-left origin
 
         glColor4f(overlay.color.r, overlay.color.g, overlay.color.b, overlay.color.a);
         glRasterPos2i(x, y);

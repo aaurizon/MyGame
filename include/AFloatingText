@@ -1,0 +1,31 @@
+// World-anchored text that will be projected into screen space.
+#pragma once
+
+#include <AEntity>
+#include <glm/glm.hpp>
+#include <string>
+
+class AFloatingText {
+public:
+    AFloatingText() = default;
+    AFloatingText(std::string value, const glm::vec3& worldPos, int height = 16, const AEntity::Color& c = {1.0f, 1.0f, 1.0f, 1.0f})
+        : text_(std::move(value)), worldPosition_(worldPos), pixelHeight_(height), color_(c) {}
+
+    const std::string& getText() const { return text_; }
+    void setText(const std::string& value) { text_ = value; }
+
+    const glm::vec3& getWorldPosition() const { return worldPosition_; }
+    void setWorldPosition(const glm::vec3& pos) { worldPosition_ = pos; }
+
+    int getPixelHeight() const { return pixelHeight_; }
+    void setPixelHeight(int h) { pixelHeight_ = h; }
+
+    const AEntity::Color& getColor() const { return color_; }
+    void setColor(const AEntity::Color& c) { color_ = c; }
+
+private:
+    std::string text_;
+    glm::vec3 worldPosition_{0.0f};
+    int pixelHeight_{16};
+    AEntity::Color color_{1.0f, 1.0f, 1.0f, 1.0f};
+};

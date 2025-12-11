@@ -1,0 +1,25 @@
+// Overlay groups screen-space and world-space texts that can be reused across viewports.
+#pragma once
+
+#include <AText>
+#include <AFloatingText>
+#include <vector>
+
+class Overlay {
+public:
+    Overlay() = default;
+    ~Overlay() = default;
+
+    AText& addText(const AText& text);
+    AFloatingText& addFloatingText(const AFloatingText& text);
+
+    std::vector<AText>& getTexts();
+    const std::vector<AText>& getTexts() const;
+
+    std::vector<AFloatingText>& getFloatingTexts();
+    const std::vector<AFloatingText>& getFloatingTexts() const;
+
+private:
+    std::vector<AText> texts_;
+    std::vector<AFloatingText> floatingTexts_;
+};
