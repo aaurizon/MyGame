@@ -22,6 +22,7 @@ set(ENGINE_SOURCES
     src/AFreeCamera.cpp
     src/ARenderOverlay.cpp
     src/AFpsCounter.cpp
+    src/ARenderTimeTracker.cpp
     src/Win32/AWindowImplWin32.cpp
 )
 

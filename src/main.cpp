@@ -1,10 +1,5 @@
 #include <algorithm>
-#include <array>
-#include <chrono>
 #include <cstdio>
-#include <cstdint>
-#include <string>
-#include <vector>
 #include <glm/glm.hpp>
 #include <AWindow>
 #include <AViewport>
@@ -16,80 +11,8 @@
 #include <AFloatingText>
 #include <ARenderOverlay>
 #include <AFpsCounter>
+#include <ARenderTimeTracker>
 #include <EEventKey>
-
-namespace {
-
-const char* backendName(EGraphicsBackend backend) {
-    switch (backend) {
-    case EGraphicsBackend::OpenGL: return "OpenGL";
-    case EGraphicsBackend::Vulkan: return "Vulkan";
-    case EGraphicsBackend::DirectX11: return "DX11";
-    case EGraphicsBackend::DirectX12: return "DX12";
-    default: return "None";
-    }
-}
-
-class RenderTimeAccumulator {
-public:
-    void record(EGraphicsBackend backend, double elapsedMilliseconds) {
-        if (backend == EGraphicsBackend::None) {
-            return;
-        }
-
-        const size_t idx = static_cast<size_t>(backend);
-        stats_[idx].accumulatedMs += elapsedMilliseconds;
-        stats_[idx].samples++;
-
-        const auto now = std::chrono::steady_clock::now();
-        if (now - lastReport_ >= std::chrono::seconds(1)) {
-            reportAndReset();
-            lastReport_ = now;
-        }
-    }
-
-private:
-    struct Stat {
-        double accumulatedMs{0.0};
-        uint64_t samples{0};
-    };
-
-    void reportAndReset() {
-        double totalMs = 0.0;
-        for (const auto& stat : stats_) {
-            totalMs += stat.accumulatedMs;
-        }
-        if (totalMs <= 0.0) {
-            stats_.fill({});
-            return;
-        }
-
-        std::printf("[Render CPU] ");
-        bool first = true;
-        for (size_t i = 0; i < stats_.size(); ++i) {
-            const auto& stat = stats_[i];
-            if (stat.samples == 0) {
-                continue;
-            }
-            const double percent = (stat.accumulatedMs / totalMs) * 100.0;
-            const double averageMs = stat.accumulatedMs / static_cast<double>(stat.samples);
-            std::printf("%s%s: %.1f%% (avg %.3f ms)",
-                        first ? "" : " | ",
-                        backendName(static_cast<EGraphicsBackend>(i)),
-                        percent,
-                        averageMs);
-            first = false;
-        }
-        std::printf("\n");
-        stats_.fill({});
-    }
-
-    static constexpr size_t kBackendCount = static_cast<size_t>(EGraphicsBackend::DirectX12) + 1;
-    std::array<Stat, kBackendCount> stats_{};
-    std::chrono::steady_clock::time_point lastReport_{std::chrono::steady_clock::now()};
-};
-
-} // namespace
 
 int main(int argc, char* argv[])
 {
@@ -165,16 +88,6 @@ int main(int argc, char* argv[])
     viewportDX12.addOverlay(hudOverlay);
 
     AFpsCounter fpsCounter;
-    RenderTimeAccumulator renderTimers;
-    auto displayWithTiming = [&](AWindow& window) {
-        const EGraphicsBackend backend = window.getGraphicsBackend();
-        const auto start = std::chrono::steady_clock::now();
-        window.display();
-        const auto end = std::chrono::steady_clock::now();
-        const double elapsedMs =
-            std::chrono::duration<double, std::milli>(end - start).count();
-        renderTimers.record(backend, elapsedMs);
-    };
 
     int lastLayoutWidth = -1;
     int lastLayoutHeight = -1;
@@ -264,10 +177,10 @@ int main(int argc, char* argv[])
             camDebugText.setText("");
         }
 
-        displayWithTiming(glRender);
-        displayWithTiming(vkRender);
-        displayWithTiming(dx11Render);
-        displayWithTiming(dx12Render);
+        ARenderTimeTracker::trackDraw(glRender);
+        ARenderTimeTracker::trackDraw(vkRender);
+        ARenderTimeTracker::trackDraw(dx11Render);
+        ARenderTimeTracker::trackDraw(dx12Render);
     }
 
     return 0;

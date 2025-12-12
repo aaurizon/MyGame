@@ -1,0 +1,34 @@
+#pragma once
+
+#include <EGraphicsBackend>
+#include <array>
+#include <chrono>
+#include <cstdint>
+
+// Tracks per-backend render CPU times and prints percentages once per interval.
+class AWindow;
+class ARenderTimeTracker {
+public:
+    explicit ARenderTimeTracker(std::chrono::milliseconds reportInterval = std::chrono::seconds(1));
+
+    // Convenience: uses an internal global tracker (1s interval) to time a draw call.
+    static void trackDraw(AWindow& window);
+
+    // Measures window.display(), records timing, and reports once per interval.
+    void timeDraw(AWindow& window);
+
+    void record(EGraphicsBackend backend, double elapsedMilliseconds);
+
+private:
+    struct Stat {
+        double accumulatedMs{0.0};
+        uint64_t samples{0};
+    };
+
+    void reportAndReset();
+
+    static constexpr size_t kBackendCount = static_cast<size_t>(EGraphicsBackend::DirectX12) + 1;
+    std::array<Stat, kBackendCount> m_stats{};
+    std::chrono::steady_clock::time_point m_lastReport;
+    std::chrono::milliseconds m_reportInterval;
+};
